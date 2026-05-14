@@ -10,6 +10,7 @@
 #define AUTHOR "mochifoxy && FoxyBlinks"
 
 new Trie:g_tBadWords;
+new Array:g_aBadWords;
 new g_iWarnings[33];
 new g_iOffenses[33];
 new g_iLastActionTime[33];
@@ -47,6 +48,7 @@ public plugin_init() {
     g_pCvarDefaultTime = create_cvar("amx_autogag_default_time", "15");
     
     g_tBadWords = TrieCreate();
+    g_aBadWords = ArrayCreate(32);
     LoadWords();
     
     g_Vault = nvault_open("autogag_offenses");
@@ -57,6 +59,7 @@ public plugin_init() {
 
 public plugin_end() {
     TrieDestroy(g_tBadWords);
+    ArrayDestroy(g_aBadWords);
     nvault_close(g_Vault);
 }
 
@@ -161,6 +164,7 @@ LoadWords() {
         
         if (szLine[0] != '^0') {
             TrieSetCell(g_tBadWords, szLine, 1);
+            ArrayPushString(g_aBadWords, szLine);
         }
     }
     
@@ -212,7 +216,7 @@ public cmd_Say(id) {
         if (g_iMessageCount[id] >= get_pcvar_num(g_pCvarFloodLimit)) {
             g_iWarnings[id]++;
             
-            client_print_color(id, print_team_default, "^4[ AutoGag ] ^1Cok hizli mesaj gonderiyorsunuz (Flood)! Uyari: ^3%d/%d", g_iWarnings[id], get_pcvar_num(g_pCvarWarnLimit));
+            client_print_color(id, print_team_default, "%sCok hizli mesaj gonderiyorsunuz (Flood)! Uyari: ^3%d/%d", AUTOGAG_TAG, g_iWarnings[id], get_pcvar_num(g_pCvarWarnLimit));
             
             if (g_iWarnings[id] >= get_pcvar_num(g_pCvarWarnLimit)) {
                 g_iOffenses[id]++;
@@ -221,7 +225,7 @@ public cmd_Say(id) {
                 new iGagTime = iDefaultTime;
                 
                 iGagTime = iDefaultTime * (1 << (g_iOffenses[id] - 1));
-                client_print_color(id, print_team_default, "^4[ AutoGag ] ^1Flood yaptiginiz icin ^3%d dakika ^1gaglandiniz.", iGagTime);
+                client_print_color(id, print_team_default, "%sFlood yaptiginiz icin ^3%d dakika ^1gaglandiniz.", AUTOGAG_TAG, iGagTime);
                 
                 new szReason[64];
                 formatex(szReason, charsmax(szReason), "Otomatik Gag (Flood %d. Ihlal)", g_iOffenses[id]);
@@ -249,13 +253,40 @@ public cmd_Say(id) {
     g_flLastTalkTime[id] = flCurrentTime;
     // ----------------------
     
-    new szNewMessage[192];
-    new szWord[192], szClean[192];
-    new iPos = 0;
     new bool:bFound = false;
+    new szNewMessage[192];
+    
+    // --- Nukleer Blok (Bosluksuz Arama) ---
+    new szSpaceless[192];
+    copy(szSpaceless, charsmax(szSpaceless), szMessage);
+    
+    new iOutIndex = 0;
+    for (new i = 0; szSpaceless[i] != '^0'; i++) {
+        if (szSpaceless[i] != ' ') {
+            szSpaceless[iOutIndex++] = szSpaceless[i];
+        }
+    }
+    szSpaceless[iOutIndex] = '^0';
+    CleanWord(szSpaceless);
+    
+    new szCurrentBadWord[32];
+    for (new i = 0; i < ArraySize(g_aBadWords); i++) {
+        ArrayGetString(g_aBadWords, i, szCurrentBadWord, charsmax(szCurrentBadWord));
+        if (containsi(szSpaceless, szCurrentBadWord) != -1) {
+            bFound = true;
+            break;
+        }
+    }
+    
+    new szWord[192], szClean[192];
+    new szSingleBuffer[64], szOriginalBuffer[128];
+    new iPos = 0;
     new bool:bFirst = true;
     
-    while ((iPos = argparse(szMessage, iPos, szWord, charsmax(szWord))) != -1) {
+    if (bFound) {
+        copy(szNewMessage, charsmax(szNewMessage), "*****");
+    } else {
+        while ((iPos = argparse(szMessage, iPos, szWord, charsmax(szWord))) != -1) {
         copy(szClean, charsmax(szClean), szWord);
         CleanWord(szClean);
         
@@ -266,6 +297,33 @@ public cmd_Say(id) {
             continue;
         }
         
+        new iLen = strlen(szClean);
+        if (iLen == 1) {
+            // Tekil harf yakaladik, buffer'a ekle
+            add(szSingleBuffer, charsmax(szSingleBuffer), szClean);
+            if (szOriginalBuffer[0] != '^0') add(szOriginalBuffer, charsmax(szOriginalBuffer), " ");
+            add(szOriginalBuffer, charsmax(szOriginalBuffer), szWord);
+            continue;
+        } else {
+            // Uzun bir kelime geldi. Once buffer'da biriken harfler var mi bakalim!
+            if (szSingleBuffer[0] != '^0') {
+                if (TrieKeyExists(g_tBadWords, szSingleBuffer)) {
+                    bFound = true;
+                    if (!bFirst) add(szNewMessage, charsmax(szNewMessage), " ");
+                    add(szNewMessage, charsmax(szNewMessage), "*****");
+                    bFirst = false;
+                } else {
+                    // Kufur degilmis, orijinal halini (bosluklu) mesaja ekle
+                    if (!bFirst) add(szNewMessage, charsmax(szNewMessage), " ");
+                    add(szNewMessage, charsmax(szNewMessage), szOriginalBuffer);
+                    bFirst = false;
+                }
+                szSingleBuffer[0] = '^0';
+                szOriginalBuffer[0] = '^0';
+            }
+        }
+        
+        // Normal kelime kontrolu
         if (TrieKeyExists(g_tBadWords, szClean)) {
             bFound = true;
             if (!bFirst) add(szNewMessage, charsmax(szNewMessage), " ");
@@ -275,6 +333,19 @@ public cmd_Say(id) {
             add(szNewMessage, charsmax(szNewMessage), szWord);
         }
         bFirst = false;
+    }
+    
+    // Dongu bitti ama sonda harf kaldi mi? (Orn: mesajin sonu "E Z" ile bitiyorsa)
+    if (szSingleBuffer[0] != '^0') {
+        if (TrieKeyExists(g_tBadWords, szSingleBuffer)) {
+            bFound = true;
+            if (!bFirst) add(szNewMessage, charsmax(szNewMessage), " ");
+            add(szNewMessage, charsmax(szNewMessage), "*****");
+        } else {
+            if (!bFirst) add(szNewMessage, charsmax(szNewMessage), " ");
+            add(szNewMessage, charsmax(szNewMessage), szOriginalBuffer);
+        }
+    }
     }
     
     if (bFound) {
@@ -310,7 +381,7 @@ public cmd_Say(id) {
             new iGagTime = iDefaultTime;
             
             iGagTime = iDefaultTime * (1 << (g_iOffenses[id] - 1));
-            client_print_color(id, print_team_default, "^4[ AutoGag ] ^1Yasakli kelime sinirini astiginiz icin ^3%d dakika ^1gaglandiniz.", iGagTime);
+            client_print_color(id, print_team_default, "%sYasakli kelime sinirini astiginiz icin ^3%d dakika ^1gaglandiniz.", AUTOGAG_TAG, iGagTime);
             
             new szReason[64];
             formatex(szReason, charsmax(szReason), "Otomatik Gag (Yasakli Kelime %d. Ihlal)", g_iOffenses[id]);
@@ -328,7 +399,7 @@ public cmd_Say(id) {
             
             log_amx("[AutoGag] %s otomatik gaglandi. Sure: %d Dk, Ihlal: %d, Neden: Yasakli Kelime", szName, iGagTime, g_iOffenses[id]);
         } else {
-            client_print_color(id, print_team_default, "^4[ AutoGag ] ^1Lutfen yasakli kelime kullanmayiniz! Uyari: ^3%d/%d", g_iWarnings[id], get_pcvar_num(g_pCvarWarnLimit));
+            client_print_color(id, print_team_default, "%sLutfen yasakli kelime kullanmayiniz! Uyari: ^3%d/%d", AUTOGAG_TAG, g_iWarnings[id], get_pcvar_num(g_pCvarWarnLimit));
             
             // nVault'a kaydet (Uyarilari da sakla)
             new szAuthID[32], szIP[32], szData[48];
@@ -370,6 +441,7 @@ public cmd_AddWord(id, level, cid) {
     }
     
     TrieSetCell(g_tBadWords, szClean, 1);
+    ArrayPushString(g_aBadWords, szClean);
     
     new szFilePath[128];
     get_configsdir(szFilePath, charsmax(szFilePath));
@@ -411,6 +483,16 @@ public cmd_DelWord(id, level, cid) {
     }
     
     TrieDeleteKey(g_tBadWords, szClean);
+    
+    // Global diziden de sil
+    for (new i = 0; i < ArraySize(g_aBadWords); i++) {
+        new szTemp[32];
+        ArrayGetString(g_aBadWords, i, szTemp, charsmax(szTemp));
+        if (equal(szTemp, szClean)) {
+            ArrayDeleteItem(g_aBadWords, i);
+            break;
+        }
+    }
     
     new szFilePath[128];
     get_configsdir(szFilePath, charsmax(szFilePath));
@@ -486,7 +568,7 @@ public cmd_ClearOffenses(id, level, cid) {
     nvault_set(g_Vault, szAuthID, szData);
     nvault_set(g_Vault, szIP, szData);
     
-    client_print_color(0, print_team_default, "^4[ AutoGag ] ^3%s^1, ^3%s ^1tarafindan ihlalleri sifirlandi.", szName, szAdminName);
+    client_print_color(0, print_team_default, "%s^3%s^1, ^3%s ^1tarafindan ihlalleri sifirlandi.", AUTOGAG_TAG, szName, szAdminName);
     log_amx("[AutoGag] %s tarafindan %s ihlalleri sifirlandi.", szAdminName, szName);
     
     return PLUGIN_HANDLED;

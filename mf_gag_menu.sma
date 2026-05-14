@@ -234,7 +234,7 @@ public Handler_TimeMenu(id, menu, item) {
     menu_item_getinfo(menu, item, dummy, szData, charsmax(szData), _, _, dummy);
     
     if (equal(szData, "custom")) {
-        client_print_color(id, print_team_default, "^4[ GAG ] ^1Lutfen chat kisminda sureyi (dakika) yazin.");
+        client_print_color(id, print_team_default, "%sLutfen chat kisminda sureyi (dakika) yazin.", GAG_TAG);
         client_cmd(id, "messagemode custom_gag_time");
         menu_destroy(menu);
         return PLUGIN_HANDLED;
@@ -244,7 +244,7 @@ public Handler_TimeMenu(id, menu, item) {
     new target = g_MenuTarget[id];
     
     if (g_bIsShortening[id] && iTime == 0) {
-        client_print_color(id, print_team_default, "^4[ GAG ] ^1Sure kisaltirken 0 (Sinirsiz) secemezsiniz!");
+        client_print_color(id, print_team_default, "%sSure kisaltirken 0 (Sinirsiz) secemezsiniz!", GAG_TAG);
         return PLUGIN_HANDLED;
     }
     
@@ -274,7 +274,7 @@ public Handler_TimeMenu(id, menu, item) {
                 ShowReasonMenu(id);
                 return PLUGIN_HANDLED;
             } else if (iCurrentTime == 0) {
-                client_print_color(id, print_team_default, "^4[ GAG ] ^1Bu oyuncu zaten sinirsiz gagli!");
+                client_print_color(id, print_team_default, "%sBu oyuncu zaten sinirsiz gagli!", GAG_TAG);
                 menu_destroy(menu);
                 return PLUGIN_HANDLED;
             }
@@ -337,7 +337,7 @@ public ShowUngagMenu(id) {
     
     if (!bGaggedFound) {
         menu_destroy(menu);
-        client_print_color(id, print_team_default, "^4[ GAG ] ^1Su anda gagli oyuncu bulunmuyor.");
+        client_print_color(id, print_team_default, "%sSu anda gagli oyuncu bulunmuyor.", GAG_TAG);
         return;
     }
     
@@ -364,7 +364,7 @@ public Handler_UngagMenu(id, menu, item) {
     new target = str_to_num(szData);
     
     if (!is_user_connected(target)) {
-        client_print_color(id, print_team_default, "^4[ GAG ] ^1Oyuncu oyundan ayrilmis.");
+        client_print_color(id, print_team_default, "%sOyuncu oyundan ayrilmis.", GAG_TAG);
         menu_destroy(menu);
         ShowUngagMenu(id);
         return PLUGIN_HANDLED;
@@ -394,7 +394,7 @@ public cmd_CustomGagTime(id) {
     }
     
     if (!bIsNumeric || i == 0) {
-        client_print_color(id, print_team_default, "^4[ GAG ] ^1Gecersiz sure girdiniz! Lutfen sadece sayi girin.");
+        client_print_color(id, print_team_default, "%sGecersiz sure girdiniz! Lutfen sadece sayi girin.", GAG_TAG);
         if (g_bFromUngag[id]) ShowUngagMenu(id);
         else ShowPlayerMenu(id);
         return PLUGIN_HANDLED;
@@ -404,7 +404,7 @@ public cmd_CustomGagTime(id) {
     new target = g_MenuTarget[id];
     
     if (g_bIsShortening[id] && iTime == 0) {
-        client_print_color(id, print_team_default, "^4[ GAG ] ^1Sure kisaltirken 0 (Sinirsiz) giremezsiniz!");
+        client_print_color(id, print_team_default, "%sSure kisaltirken 0 (Sinirsiz) giremezsiniz!", GAG_TAG);
         return PLUGIN_HANDLED;
     }
     
@@ -431,7 +431,7 @@ public cmd_CustomGagTime(id) {
                 ShowReasonMenu(id);
                 return PLUGIN_HANDLED;
             } else if (iCurrentTime == 0) {
-                client_print_color(id, print_team_default, "^4[ GAG ] ^1Bu oyuncu zaten sinirsiz gagli!");
+                client_print_color(id, print_team_default, "%sBu oyuncu zaten sinirsiz gagli!", GAG_TAG);
                 return PLUGIN_HANDLED;
             }
         } else {
@@ -485,7 +485,7 @@ public Handler_ReasonMenu(id, menu, item) {
     menu_item_getinfo(menu, item, dummy, szData, charsmax(szData), _, _, dummy);
     
     if (equal(szData, "custom")) {
-        client_print_color(id, print_team_default, "^4[ GAG ] ^1Lutfen chat kisminda sebebi yazin.");
+        client_print_color(id, print_team_default, "%sLutfen chat kisminda sebebi yazin.", GAG_TAG);
         client_cmd(id, "messagemode custom_gag_reason");
         menu_destroy(menu);
         return PLUGIN_HANDLED;

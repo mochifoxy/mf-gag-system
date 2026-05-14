@@ -3,6 +3,9 @@
 #endif
 #define _mf_gag_included
 
+#define GAG_TAG "^4[ MochiGAG ] ^1"
+#define AUTOGAG_TAG "^4[ Auto MochiGAG ] ^1"
+
 /**
  * Oyuncunun gaglı olup olmadığını kontrol eder.
  *

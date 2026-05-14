@@ -2,6 +2,7 @@
 #include <amxmisc>
 #include <nvault>
 #include <fakemeta>
+#include <mf_gag>
 
 #pragma semicolon 1
 
@@ -212,12 +213,12 @@ public bool:native_set_gag(plugin_id, num_params) {
     if (!is_user_connected(target_id)) return false;
     
     if (admin_id == target_id && !g_bIsGagged[target_id]) {
-        client_print_color(admin_id, print_team_default, "^4[ GAG ] ^1Kendinizi gaglayamazsiniz!");
+        client_print_color(admin_id, print_team_default, "%sKendinizi gaglayamazsiniz!", GAG_TAG);
         return false;
     }
     
     if (access(target_id, ADMIN_IMMUNITY) && admin_id != 0 && !g_bIsGagged[target_id]) {
-        client_print_color(admin_id, print_team_default, "^4[ GAG ] ^1Dokunulmazligi olan bir oyuncuyu gaglayamazsiniz!");
+        client_print_color(admin_id, print_team_default, "%sDokunulmazligi olan bir oyuncuyu gaglayamazsiniz!", GAG_TAG);
         return false;
     }
     

@@ -76,7 +76,7 @@ public cmd_say(id) {
         if (!access(id, ADMIN_KICK)) return PLUGIN_CONTINUE;
         
         if (szTarget[0] == '^0') {
-            client_print_color(id, print_team_default, "^4[ GAG ] ^1Kullanim: ^4/gag ^3<isim> ^1<sure>");
+            client_print_color(id, print_team_default, "%sKullanim: ^4/gag ^3<isim> ^1<sure>", GAG_TAG);
             return PLUGIN_HANDLED;
         }
         
@@ -97,7 +97,7 @@ public cmd_say(id) {
         if (!access(id, ADMIN_KICK)) return PLUGIN_CONTINUE;
         
         if (szTarget[0] == '^0') {
-            client_print_color(id, print_team_default, "^4[ GAG ] ^1Kullanim: ^4/ungag ^3<isim>");
+            client_print_color(id, print_team_default, "%sKullanim: ^4/ungag ^3<isim>", GAG_TAG);
             return PLUGIN_HANDLED;
         }
         
@@ -105,7 +105,7 @@ public cmd_say(id) {
         if (!target) return PLUGIN_HANDLED;
         
         if (!mfgag_is_gagged(target)) {
-            client_print_color(id, print_team_default, "^4[ GAG ] ^1Bu oyuncu zaten gagli degil.");
+            client_print_color(id, print_team_default, "%sBu oyuncu zaten gagli degil.", GAG_TAG);
             return PLUGIN_HANDLED;
         }
         
