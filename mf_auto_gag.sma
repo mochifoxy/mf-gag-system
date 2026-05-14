@@ -35,9 +35,9 @@ public plugin_init() {
     register_clcmd("say", "cmd_Say");
     register_clcmd("say_team", "cmd_Say");
     
-    // Admin Komutlari
     register_concmd("amx_kufurekle", "cmd_AddWord", ADMIN_RCON, "<kelime> - Kufur listesine kelime ekler");
     register_concmd("amx_kufursil", "cmd_DelWord", ADMIN_RCON, "<kelime> - Kufur listesinden kelime siler");
+    register_concmd("amx_ihlaltemizle", "cmd_ClearOffenses", ADMIN_RCON, "<isim> - Oyuncunun ihlallerini sifirlar");
     
     g_pCvarEnabled = create_cvar("amx_autogag", "1");
     g_pCvarFloodTime = create_cvar("amx_autogag_flood_time", "2.0");
@@ -457,6 +457,38 @@ public cmd_DelWord(id, level, cid) {
     }
     
     ArrayDestroy(aLines);
+    return PLUGIN_HANDLED;
+}
+
+public cmd_ClearOffenses(id, level, cid) {
+    if (!cmd_access(id, level, cid, 2))
+        return PLUGIN_HANDLED;
+        
+    new szArg[32];
+    read_argv(1, szArg, charsmax(szArg));
+    
+    new target = cmd_target(id, szArg, 0);
+    if (!target) return PLUGIN_HANDLED;
+    
+    g_iOffenses[target] = 0;
+    g_iWarnings[target] = 0;
+    g_iLastActionTime[target] = get_systime();
+    
+    new szName[32], szAdminName[32];
+    get_user_name(target, szName, charsmax(szName));
+    get_user_name(id, szAdminName, charsmax(szAdminName));
+    
+    // nVault'a kaydet
+    new szAuthID[32], szIP[32], szData[48];
+    get_user_authid(target, szAuthID, charsmax(szAuthID));
+    get_user_ip(target, szIP, charsmax(szIP), 1);
+    formatex(szData, charsmax(szData), "0 0 %d", g_iLastActionTime[target]);
+    nvault_set(g_Vault, szAuthID, szData);
+    nvault_set(g_Vault, szIP, szData);
+    
+    client_print_color(0, print_team_default, "^4[ AutoGag ] ^3%s^1, ^3%s ^1tarafindan ihlalleri sifirlandi.", szName, szAdminName);
+    log_amx("[AutoGag] %s tarafindan %s ihlalleri sifirlandi.", szAdminName, szName);
+    
     return PLUGIN_HANDLED;
 }
 

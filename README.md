@@ -95,6 +95,7 @@ addons/amxmodx/
 |---|---|
 | `amx_kufurekle <kelime>` | Çalışırken yeni yasaklı kelime ekler |
 | `amx_kufursil <kelime>` | Yasaklı kelimeyi listeden kaldırır |
+| `amx_ihlaltemizle <isim>` | Oyuncunun ihlal puanlarını (AutoGag) sıfırlar |
 
 ### ⚙️ CVAR Ayarları
 
