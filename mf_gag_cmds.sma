@@ -24,9 +24,10 @@ public cmd_gag(id, level, cid) {
     if (!cmd_access(id, level, cid, 3))
         return PLUGIN_HANDLED;
         
-    new szArg1[32], szArg2[32];
+    new szArg1[32], szArg2[32], szArg3[64];
     read_argv(1, szArg1, charsmax(szArg1));
     read_argv(2, szArg2, charsmax(szArg2));
+    read_argv(3, szArg3, charsmax(szArg3));
     
     new target = cmd_target(id, szArg1, CMDTARGET_OBEY_IMMUNITY | CMDTARGET_ALLOW_SELF);
     if (!target) return PLUGIN_HANDLED;
@@ -34,7 +35,11 @@ public cmd_gag(id, level, cid) {
     new iTime = str_to_num(szArg2);
     if (iTime < 0) iTime = 0;
     
-    mfgag_set_gag(id, target, iTime);
+    if (szArg3[0] == '^0') {
+        copy(szArg3, charsmax(szArg3), "Belirtilmedi");
+    }
+    
+    mfgag_set_gag(id, target, iTime, szArg3);
     
     return PLUGIN_HANDLED;
 }
@@ -64,8 +69,8 @@ public cmd_say(id) {
     read_args(szText, charsmax(szText));
     remove_quotes(szText);
     
-    new szCmd[16], szTarget[32], szTime[32];
-    parse(szText, szCmd, charsmax(szCmd), szTarget, charsmax(szTarget), szTime, charsmax(szTime));
+    new szCmd[16], szTarget[32], szTime[32], szReason[64];
+    parse(szText, szCmd, charsmax(szCmd), szTarget, charsmax(szTarget), szTime, charsmax(szTime), szReason, charsmax(szReason));
     
     if (equali(szCmd, "/gag")) {
         if (!access(id, ADMIN_KICK)) return PLUGIN_CONTINUE;
@@ -81,7 +86,11 @@ public cmd_say(id) {
         new iTime = str_to_num(szTime);
         if (iTime < 0) iTime = 0;
         
-        mfgag_set_gag(id, target, iTime);
+        if (szReason[0] == '^0') {
+            copy(szReason, charsmax(szReason), "Belirtilmedi");
+        }
+        
+        mfgag_set_gag(id, target, iTime, szReason);
         return PLUGIN_HANDLED; // Gizle
     }
     else if (equali(szCmd, "/ungag")) {

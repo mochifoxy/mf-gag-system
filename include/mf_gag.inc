@@ -17,9 +17,10 @@ native bool:mfgag_is_gagged(id);
  * @param admin_id  Gag atan admin (0 ise Server/Sistem)
  * @param target_id Gag atılacak hedef oyuncu
  * @param minutes   Gag süresi (dakika) (0 ise sınırsız)
+ * @param reason    Gag sebebi
  * @return          true başarıyla atıldıysa, false atılamadıysa
  */
-native bool:mfgag_set_gag(admin_id, target_id, minutes);
+native bool:mfgag_set_gag(admin_id, target_id, minutes, const reason[]);
 
 /**
  * Oyuncunun gagını kaldırır.
