@@ -51,9 +51,8 @@ public plugin_end() {
 public client_putinserver(id) {
     g_bIsGagged[id] = false;
     g_iGagEnd[id] = 0;
-    //gecic engelleme bot kontrolunu devre disi birak
-    //if (is_user_bot(id) || is_user_hltv(id))
-       // return;
+    if (is_user_bot(id) || is_user_hltv(id))
+        return;
         
     get_user_authid(id, g_szAuthID[id], charsmax(g_szAuthID[]));
     get_user_ip(id, g_szIP[id], charsmax(g_szIP[]), 1);
@@ -77,6 +76,9 @@ public check_gag(task_id) {
     
     new szData[128], iTimestamp;
     new bool:bFound = false;
+    
+    get_user_authid(id, g_szAuthID[id], charsmax(g_szAuthID[]));
+    get_user_ip(id, g_szIP[id], charsmax(g_szIP[]), 1);
     
     if (nvault_lookup(g_Vault, g_szAuthID[id], szData, charsmax(szData), iTimestamp)) {
         bFound = true;
@@ -151,6 +153,15 @@ stock remove_gag_from_db(const szAuth[], const szIP[]) {
 // Hooks
 public cmd_say(id) {
     if (g_bIsGagged[id]) {
+        new szText[128];
+        read_args(szText, charsmax(szText));
+        remove_quotes(szText);
+        
+        // Gagli olsa bile '/' veya '.' ile baslayan komutlari engelleme
+        if (szText[0] == '/' || szText[0] == '.') {
+            return PLUGIN_CONTINUE;
+        }
+        
         client_print_color(id, print_team_default, "^4[ GAG ] ^1Susturuldugunuz icin yazi yazamazsiniz.");
         return PLUGIN_HANDLED;
     }
@@ -159,6 +170,14 @@ public cmd_say(id) {
 
 public cmd_say_team(id) {
     if (g_bIsGagged[id]) {
+        new szText[128];
+        read_args(szText, charsmax(szText));
+        remove_quotes(szText);
+        
+        if (szText[0] == '/' || szText[0] == '.') {
+            return PLUGIN_CONTINUE;
+        }
+        
         client_print_color(id, print_team_default, "^4[ GAG ] ^1Susturuldugunuz icin takim ici yazi yazamazsiniz.");
         return PLUGIN_HANDLED;
     }
@@ -209,17 +228,23 @@ public bool:native_set_gag(plugin_id, num_params) {
     new iAddedMinutes = minutes;
     
     if (g_bIsGagged[target_id] && minutes != 0) {
-        new iRemainingSeconds = g_iGagEnd[target_id] - get_systime();
-        if (iRemainingSeconds > 0) {
-            new iRemainingMins = iRemainingSeconds / 60;
-            if (minutes < iRemainingMins) {
-                bIsShortening = true;
-                iAddedMinutes = iRemainingMins - minutes;
-                if (iAddedMinutes < 1) iAddedMinutes = 1;
-            } else if (minutes > iRemainingMins) {
-                bIsExtension = true;
-                iAddedMinutes = minutes - iRemainingMins;
-                if (iAddedMinutes < 1) iAddedMinutes = 1;
+        if (g_iGagEnd[target_id] == 0) {
+            // Sinirsiz gagliydi, simdi sureli yapiliyo -> Kisaltma!
+            bIsShortening = true;
+            iAddedMinutes = minutes;
+        } else {
+            new iRemainingSeconds = g_iGagEnd[target_id] - get_systime();
+            if (iRemainingSeconds > 0) {
+                new iRemainingMins = iRemainingSeconds / 60;
+                if (minutes < iRemainingMins) {
+                    bIsShortening = true;
+                    iAddedMinutes = iRemainingMins - minutes;
+                    if (iAddedMinutes < 1) iAddedMinutes = 1;
+                } else if (minutes > iRemainingMins) {
+                    bIsExtension = true;
+                    iAddedMinutes = minutes - iRemainingMins;
+                    if (iAddedMinutes < 1) iAddedMinutes = 1;
+                }
             }
         }
     }
