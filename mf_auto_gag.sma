@@ -81,7 +81,7 @@ public load_offenses(id) {
     
     new iCountID = 0, iWarningsID = 0, iTimestampID = 0;
     new iCountIP = 0, iWarningsIP = 0, iTimestampIP = 0;
-    new szData[32], szCount[10], szWarnings[10], szTime[20];
+    new szData[48], szCount[10], szWarnings[10], szTime[20];
     
     // SteamID ile kontrol
     if (nvault_get(g_Vault, szAuthID, szData, charsmax(szData))) {
@@ -193,7 +193,15 @@ public cmd_Say(id) {
         if (iPassed > 0) {
             g_iOffenses[id] = max(0, g_iOffenses[id] - iPassed);
             g_iWarnings[id] = 0;
-            g_iLastActionTime[id] = iCurrentTime; // Guncelle
+            g_iLastActionTime[id] = iCurrentTime;
+            
+            // Dusurulmus ihlali nVault'a kaydet (cik-gir sonrasi tutarli kalsin)
+            new szDecayAuthID[32], szDecayIP[32], szDecayData[48];
+            get_user_authid(id, szDecayAuthID, charsmax(szDecayAuthID));
+            get_user_ip(id, szDecayIP, charsmax(szDecayIP), 1);
+            formatex(szDecayData, charsmax(szDecayData), "%d %d %d", g_iOffenses[id], g_iWarnings[id], iCurrentTime);
+            nvault_set(g_Vault, szDecayAuthID, szDecayData);
+            nvault_set(g_Vault, szDecayIP, szDecayData);
         }
     }
     
@@ -218,7 +226,11 @@ public cmd_Say(id) {
                     iGagTime = iDefaultTime * (1 << (g_iOffenses[id] - 1));
                 }
                 
-                client_print_color(id, print_team_default, "^4[ AutoGag ] ^1Flood yaptiginiz icin ^3%d dakika ^1gaglandiniz.", iGagTime);
+                if (iGagTime == 0) {
+                    client_print_color(id, print_team_default, "^4[ AutoGag ] ^1Flood yaptiginiz icin ^3SINIRSIZ ^1gaglandiniz.");
+                } else {
+                    client_print_color(id, print_team_default, "^4[ AutoGag ] ^1Flood yaptiginiz icin ^3%d dakika ^1gaglandiniz.", iGagTime);
+                }
                 
                 new szReason[64];
                 formatex(szReason, charsmax(szReason), "Otomatik Gag (Flood %d. Ihlal)", g_iOffenses[id]);
@@ -227,10 +239,10 @@ public cmd_Say(id) {
                 g_iWarnings[id] = 0;
                 
                 // nVault'a kaydet (Hem ID hem IP)
-                new szAuthID[32], szIP[32], szData[32];
+                new szAuthID[32], szIP[32], szData[48];
                 get_user_authid(id, szAuthID, charsmax(szAuthID));
                 get_user_ip(id, szIP, charsmax(szIP), 1);
-                formatex(szData, charsmax(szData), "%d %d", g_iOffenses[id], get_systime());
+                formatex(szData, charsmax(szData), "%d %d %d", g_iOffenses[id], g_iWarnings[id], get_systime());
                 nvault_set(g_Vault, szAuthID, szData);
                 nvault_set(g_Vault, szIP, szData);
                 
@@ -325,7 +337,7 @@ public cmd_Say(id) {
             g_iWarnings[id] = 0;
             
             // nVault'a kaydet (Hem ID hem IP)
-            new szAuthID[32], szIP[32], szData[32];
+            new szAuthID[32], szIP[32], szData[48];
             get_user_authid(id, szAuthID, charsmax(szAuthID));
             get_user_ip(id, szIP, charsmax(szIP), 1);
             formatex(szData, charsmax(szData), "%d %d %d", g_iOffenses[id], g_iWarnings[id], get_systime());
@@ -337,7 +349,7 @@ public cmd_Say(id) {
             client_print_color(id, print_team_default, "^4[ AutoGag ] ^1Lutfen yasakli kelime kullanmayiniz! Uyari: ^3%d/%d", g_iWarnings[id], get_pcvar_num(g_pCvarWarnLimit));
             
             // nVault'a kaydet (Uyarilari da sakla)
-            new szAuthID[32], szIP[32], szData[32];
+            new szAuthID[32], szIP[32], szData[48];
             get_user_authid(id, szAuthID, charsmax(szAuthID));
             get_user_ip(id, szIP, charsmax(szIP), 1);
             formatex(szData, charsmax(szData), "%d %d %d", g_iOffenses[id], g_iWarnings[id], get_systime());
@@ -387,9 +399,9 @@ public cmd_AddWord(id, level, cid) {
     
     new f = fopen(szFilePath, "at");
     if (f) {
-        fprintf(f, "%s^n", szWord);
+        fprintf(f, "%s^n", szClean); // Temizlenmis hali yaz, dosyayi duzenli tut
         fclose(f);
-        console_print(id, "[AutoGag] '%s' kelimesi basariyla eklendi.", szWord);
+        console_print(id, "[AutoGag] '%s' kelimesi basariyla eklendi.", szClean);
     } else {
         console_print(id, "[AutoGag] Dosya acilamadi!");
     }

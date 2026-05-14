@@ -24,6 +24,12 @@ public plugin_init() {
     register_clcmd("say_team /ungagmenu", "cmd_ungagmenu");
     register_clcmd("amx_ungagmenu", "cmd_ungagmenu");
     
+    // Kisayollar
+    register_clcmd("say /gm", "cmd_gagmenu");
+    register_clcmd("say_team /gm", "cmd_gagmenu");
+    register_clcmd("say /ugm", "cmd_ungagmenu");
+    register_clcmd("say_team /ugm", "cmd_ungagmenu");
+    
     register_clcmd("custom_gag_time", "cmd_CustomGagTime");
     register_clcmd("custom_gag_reason", "cmd_CustomGagReason");
 }
@@ -414,7 +420,13 @@ public ShowReasonMenu(id) {
     
     new szName[32], szTitle[128];
     get_user_name(target, szName, charsmax(szName));
-    formatex(szTitle, charsmax(szTitle), "\d[\r GAG SEBEBI SECIMI \d]^n\y==========================^n\wHedef: \y%s^n", szName);
+    
+    new iTime = g_MenuTime[id];
+    if (iTime == 0) {
+        formatex(szTitle, charsmax(szTitle), "\d[\r GAG SEBEBI SECIMI \d]^n\y==========================^n\wHedef: \y%s^n\wSure: \rSINIRSIZ^n\ySebep Nedir?^n", szName);
+    } else {
+        formatex(szTitle, charsmax(szTitle), "\d[\r GAG SEBEBI SECIMI \d]^n\y==========================^n\wHedef: \y%s^n\wSure: \y%d Dakika^n\ySebep Nedir?^n", szName, iTime);
+    }
     
     new menu = menu_create(szTitle, "Handler_ReasonMenu");
     
