@@ -272,7 +272,7 @@ public cmd_Say(id) {
     new szCurrentBadWord[32];
     for (new i = 0; i < ArraySize(g_aBadWords); i++) {
         ArrayGetString(g_aBadWords, i, szCurrentBadWord, charsmax(szCurrentBadWord));
-        if (containsi(szSpaceless, szCurrentBadWord) != -1) {
+        if (containi(szSpaceless, szCurrentBadWord) != -1) {
             bFound = true;
             break;
         }
@@ -335,17 +335,17 @@ public cmd_Say(id) {
         bFirst = false;
     }
     
-    // Dongu bitti ama sonda harf kaldi mi? (Orn: mesajin sonu "E Z" ile bitiyorsa)
-    if (szSingleBuffer[0] != '^0') {
-        if (TrieKeyExists(g_tBadWords, szSingleBuffer)) {
-            bFound = true;
-            if (!bFirst) add(szNewMessage, charsmax(szNewMessage), " ");
-            add(szNewMessage, charsmax(szNewMessage), "*****");
-        } else {
-            if (!bFirst) add(szNewMessage, charsmax(szNewMessage), " ");
-            add(szNewMessage, charsmax(szNewMessage), szOriginalBuffer);
+        // Dongu bitti ama sonda harf kaldi mi? (Orn: mesajin sonu "E Z" ile bitiyorsa)
+        if (szSingleBuffer[0] != '^0') {
+            if (TrieKeyExists(g_tBadWords, szSingleBuffer)) {
+                bFound = true;
+                if (!bFirst) add(szNewMessage, charsmax(szNewMessage), " ");
+                add(szNewMessage, charsmax(szNewMessage), "*****");
+            } else {
+                if (!bFirst) add(szNewMessage, charsmax(szNewMessage), " ");
+                add(szNewMessage, charsmax(szNewMessage), szOriginalBuffer);
+            }
         }
-    }
     }
     
     if (bFound) {
