@@ -211,12 +211,12 @@ public bool:native_set_gag(plugin_id, num_params) {
     
     if (!is_user_connected(target_id)) return false;
     
-    if (admin_id == target_id) {
+    if (admin_id == target_id && !g_bIsGagged[target_id]) {
         client_print_color(admin_id, print_team_default, "^4[ GAG ] ^1Kendinizi gaglayamazsiniz!");
         return false;
     }
     
-    if (access(target_id, ADMIN_IMMUNITY) && admin_id != 0) {
+    if (access(target_id, ADMIN_IMMUNITY) && admin_id != 0 && !g_bIsGagged[target_id]) {
         client_print_color(admin_id, print_team_default, "^4[ GAG ] ^1Dokunulmazligi olan bir oyuncuyu gaglayamazsiniz!");
         return false;
     }

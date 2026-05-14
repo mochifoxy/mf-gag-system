@@ -220,17 +220,8 @@ public cmd_Say(id) {
                 new iDefaultTime = get_pcvar_num(g_pCvarDefaultTime);
                 new iGagTime = iDefaultTime;
                 
-                if (g_iOffenses[id] >= 5) {
-                    iGagTime = 0; // SINIRSIZ!
-                } else {
-                    iGagTime = iDefaultTime * (1 << (g_iOffenses[id] - 1));
-                }
-                
-                if (iGagTime == 0) {
-                    client_print_color(id, print_team_default, "^4[ AutoGag ] ^1Flood yaptiginiz icin ^3SINIRSIZ ^1gaglandiniz.");
-                } else {
-                    client_print_color(id, print_team_default, "^4[ AutoGag ] ^1Flood yaptiginiz icin ^3%d dakika ^1gaglandiniz.", iGagTime);
-                }
+                iGagTime = iDefaultTime * (1 << (g_iOffenses[id] - 1));
+                client_print_color(id, print_team_default, "^4[ AutoGag ] ^1Flood yaptiginiz icin ^3%d dakika ^1gaglandiniz.", iGagTime);
                 
                 new szReason[64];
                 formatex(szReason, charsmax(szReason), "Otomatik Gag (Flood %d. Ihlal)", g_iOffenses[id]);
@@ -318,17 +309,8 @@ public cmd_Say(id) {
             new iDefaultTime = get_pcvar_num(g_pCvarDefaultTime);
             new iGagTime = iDefaultTime;
             
-            if (g_iOffenses[id] >= 5) {
-                iGagTime = 0; // SINIRSIZ!
-            } else {
-                iGagTime = iDefaultTime * (1 << (g_iOffenses[id] - 1));
-            }
-            
-            if (iGagTime == 0) {
-                client_print_color(id, print_team_default, "^4[ AutoGag ] ^1Yasakli kelime sinirini astiginiz icin ^3SINIRSIZ ^1gaglandiniz.");
-            } else {
-                client_print_color(id, print_team_default, "^4[ AutoGag ] ^1Yasakli kelime sinirini astiginiz icin ^3%d dakika ^1gaglandiniz.", iGagTime);
-            }
+            iGagTime = iDefaultTime * (1 << (g_iOffenses[id] - 1));
+            client_print_color(id, print_team_default, "^4[ AutoGag ] ^1Yasakli kelime sinirini astiginiz icin ^3%d dakika ^1gaglandiniz.", iGagTime);
             
             new szReason[64];
             formatex(szReason, charsmax(szReason), "Otomatik Gag (Yasakli Kelime %d. Ihlal)", g_iOffenses[id]);

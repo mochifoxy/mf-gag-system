@@ -89,6 +89,10 @@ public Handler_PlayerMenu(id, menu, item) {
         return PLUGIN_HANDLED;
     }
     
+    if (item == MENU_BACK || item == MENU_MORE) {
+        return PLUGIN_CONTINUE;
+    }
+    
     new szData[6], dummy;
     menu_item_getinfo(menu, item, dummy, szData, charsmax(szData), _, _, dummy);
     
@@ -185,7 +189,12 @@ public ShowTimeMenu(id) {
     
     new szName[32], szTitle[128];
     get_user_name(target, szName, charsmax(szName));
-    formatex(szTitle, charsmax(szTitle), "\d[\r GAG SURESI SECIMI \d]^n\y==========================^n\wHedef: \y%s^n", szName);
+    
+    if (g_bIsShortening[id]) {
+        formatex(szTitle, charsmax(szTitle), "\d[\r GAG SURESI KISALTMA \d]^n\y==========================^n\wHedef: \y%s^n", szName);
+    } else {
+        formatex(szTitle, charsmax(szTitle), "\d[\r GAG SURESI ARTIRMA \d]^n\y==========================^n\wHedef: \y%s^n", szName);
+    }
     
     new menu = menu_create(szTitle, "Handler_TimeMenu");
     
@@ -195,9 +204,15 @@ public ShowTimeMenu(id) {
     menu_additem(menu, "\w20 Dakika", "20");
     menu_additem(menu, "\w30 Dakika", "30");
     menu_additem(menu, "\w60 Dakika", "60");
-    menu_additem(menu, "\rSinirsiz", "0");
+    
+    if (!g_bIsShortening[id]) {
+        menu_additem(menu, "\rSinirsiz", "0");
+    }
+    
     menu_additem(menu, "\yOzel Sure", "custom");
     
+    menu_setprop(menu, MPROP_BACKNAME, "\wGeri");
+    menu_setprop(menu, MPROP_NEXTNAME, "\wIleri");
     menu_setprop(menu, MPROP_EXITNAME, "\dIptal/Geri");
     
     menu_display(id, menu, 0);
@@ -209,6 +224,10 @@ public Handler_TimeMenu(id, menu, item) {
         if (g_bFromUngag[id]) ShowUngagMenu(id);
         else ShowPlayerMenu(id);
         return PLUGIN_HANDLED;
+    }
+    
+    if (item == MENU_BACK || item == MENU_MORE) {
+        return PLUGIN_CONTINUE;
     }
     
     new szData[10], dummy;
@@ -223,6 +242,11 @@ public Handler_TimeMenu(id, menu, item) {
     
     new iTime = str_to_num(szData);
     new target = g_MenuTarget[id];
+    
+    if (g_bIsShortening[id] && iTime == 0) {
+        client_print_color(id, print_team_default, "^4[ GAG ] ^1Sure kisaltirken 0 (Sinirsiz) secemezsiniz!");
+        return PLUGIN_HANDLED;
+    }
     
     if (is_user_connected(target)) {
         if (mfgag_is_gagged(target) && iTime != 0) {
@@ -330,6 +354,10 @@ public Handler_UngagMenu(id, menu, item) {
         return PLUGIN_HANDLED;
     }
     
+    if (item == MENU_BACK || item == MENU_MORE) {
+        return PLUGIN_CONTINUE;
+    }
+    
     new szData[6], dummy;
     menu_item_getinfo(menu, item, dummy, szData, charsmax(szData), _, _, dummy);
     
@@ -374,6 +402,11 @@ public cmd_CustomGagTime(id) {
     
     new iTime = str_to_num(szArg);
     new target = g_MenuTarget[id];
+    
+    if (g_bIsShortening[id] && iTime == 0) {
+        client_print_color(id, print_team_default, "^4[ GAG ] ^1Sure kisaltirken 0 (Sinirsiz) giremezsiniz!");
+        return PLUGIN_HANDLED;
+    }
     
     if (is_user_connected(target)) {
         if (mfgag_is_gagged(target) && iTime != 0) {
@@ -444,7 +477,7 @@ public ShowReasonMenu(id) {
 public Handler_ReasonMenu(id, menu, item) {
     if (item == MENU_EXIT) {
         menu_destroy(menu);
-        ShowTimeMenu(id); // Süre seçimine geri dön
+        ShowTimeMenu(id);
         return PLUGIN_HANDLED;
     }
     
