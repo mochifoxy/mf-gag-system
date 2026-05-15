@@ -22,6 +22,8 @@ new g_szAuthID[33][35];
 new g_szIP[33][32];
 new g_szGagReason[33][64];
 
+new Array:g_aCmdWhitelist;
+
 public plugin_natives() {
     register_native("mfgag_is_gagged", "native_is_gagged");
     register_native("mfgag_set_gag", "native_set_gag");
@@ -41,12 +43,17 @@ public plugin_init() {
     if (g_Vault == INVALID_HANDLE) {
         set_fail_state("nVault acilamadi! Eklenti durduruldu.");
     }
+    
+    g_aCmdWhitelist = ArrayCreate(32);
+    LoadCmdWhitelist();
 }
 
 public plugin_end() {
     if (g_Vault != INVALID_HANDLE) {
         nvault_close(g_Vault);
     }
+    
+    ArrayDestroy(g_aCmdWhitelist);
 }
 
 public client_putinserver(id) {
@@ -151,6 +158,36 @@ stock remove_gag_from_db(const szAuth[], const szIP[]) {
     nvault_remove(g_Vault, szIP);
 }
 
+LoadCmdWhitelist() {
+    new szFilePath[128];
+    get_configsdir(szFilePath, charsmax(szFilePath));
+    format(szFilePath, charsmax(szFilePath), "%s/gag_whitelist.ini", szFilePath);
+    
+    if (!file_exists(szFilePath)) {
+        new f = fopen(szFilePath, "wt");
+        if (f) {
+            fprintf(f, "/rank^n/top15^n/me^n/stats^n.rank^n.top15^n.me^n");
+            fclose(f);
+        }
+    }
+    
+    new f = fopen(szFilePath, "rt");
+    if (!f) return;
+    
+    new szLine[32];
+    while (!feof(f)) {
+        fgets(f, szLine, charsmax(szLine));
+        trim(szLine);
+        
+        if (szLine[0] == '^0' || szLine[0] == ';' || (szLine[0] == '/' && szLine[1] == '/')) {
+            continue;
+        }
+        
+        ArrayPushString(g_aCmdWhitelist, szLine);
+    }
+    fclose(f);
+}
+
 // Hooks
 public cmd_say(id) {
     if (g_bIsGagged[id]) {
@@ -160,11 +197,12 @@ public cmd_say(id) {
         
         // Gagli olsa bile kullanabilecegi guvenli komutlar
         if (szText[0] == '/' || szText[0] == '.') {
-            new const szWhitelist[][] = { "/rank", "/top15", "/me", "/stats", ".rank", ".top15", ".me" };
+            new szCmd[32];
             new bool:bAllowed = false;
             
-            for (new i = 0; i < sizeof(szWhitelist); i++) {
-                if (equal(szText, szWhitelist[i], strlen(szWhitelist[i]))) {
+            for (new i = 0; i < ArraySize(g_aCmdWhitelist); i++) {
+                ArrayGetString(g_aCmdWhitelist, i, szCmd, charsmax(szCmd));
+                if (equal(szText, szCmd, strlen(szCmd))) {
                     bAllowed = true;
                     break;
                 }
@@ -191,11 +229,12 @@ public cmd_say_team(id) {
         remove_quotes(szText);
         
         if (szText[0] == '/' || szText[0] == '.') {
-            new const szWhitelist[][] = { "/rank", "/top15", "/me", "/stats", ".rank", ".top15", ".me" };
+            new szCmd[32];
             new bool:bAllowed = false;
             
-            for (new i = 0; i < sizeof(szWhitelist); i++) {
-                if (equal(szText, szWhitelist[i], strlen(szWhitelist[i]))) {
+            for (new i = 0; i < ArraySize(g_aCmdWhitelist); i++) {
+                ArrayGetString(g_aCmdWhitelist, i, szCmd, charsmax(szCmd));
+                if (equal(szText, szCmd, strlen(szCmd))) {
                     bAllowed = true;
                     break;
                 }
