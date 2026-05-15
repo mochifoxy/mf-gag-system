@@ -1,7 +1,7 @@
 #include <amxmodx>
 #include <amxmisc>
 #include <nvault>
-#include <fakemeta>
+#include <reapi>
 #include <mf_gag>
 
 #pragma semicolon 1
@@ -35,7 +35,7 @@ public plugin_init() {
     register_clcmd("say", "cmd_say");
     register_clcmd("say_team", "cmd_say_team");
     
-    register_forward(FM_Voice_SetClientListening, "fwd_VoiceSetClientListening");
+    RegisterHookChain(RG_CSGameRules_CanPlayerHearPlayer, "refwd_CanPlayerHearPlayer");
     
     g_Vault = nvault_open("mf_gag_system");
     if (g_Vault == INVALID_HANDLE) {
@@ -114,11 +114,11 @@ public check_gag(task_id) {
             new szName[32];
             get_user_name(id, szName, charsmax(szName));
             if (iEnd == 0) {
-                client_print_color(0, print_team_default, "^4[ GAG ] ^3%s ^1adli oyuncu sunucuya ^4SINIRSIZ GAGLI ^1olarak baglandi. Sebep: ^3%s", szName, szReason);
+                client_print_color(0, print_team_default, "%s^3%s ^1adli oyuncu sunucuya ^4SINIRSIZ GAGLI ^1olarak baglandi. Sebep: ^3%s", GAG_TAG, szName, szReason);
             } else {
                 new iRemainingMinutes = (iEnd - iCurrentTime) / 60;
                 if (iRemainingMinutes < 1) iRemainingMinutes = 1;
-                client_print_color(0, print_team_default, "^4[ GAG ] ^3%s ^1adli oyuncu sunucuya ^4%d DK GAGLI ^1olarak baglandi. Sebep: ^3%s", szName, iRemainingMinutes, szReason);
+                client_print_color(0, print_team_default, "%s^3%s ^1adli oyuncu sunucuya ^4%d DK GAGLI ^1olarak baglandi. Sebep: ^3%s", GAG_TAG, szName, iRemainingMinutes, szReason);
             }
         } else {
             new szName[32];
@@ -139,8 +139,8 @@ public task_GagExpired(task_id) {
         new szName[32];
         get_user_name(id, szName, charsmax(szName));
         
-        client_print_color(id, print_team_default, "^4[ GAG ] ^1Gag sureniz doldu, artik konusabilirsiniz.");
-        client_print_color(0, print_team_default, "^4[ GAG ] ^3%s ^1adli oyuncunun gag cezasi bitmistir.", szName);
+        client_print_color(id, print_team_default, "%sGag sureniz doldu, artik konusabilirsiniz.", GAG_TAG);
+        client_print_color(0, print_team_default, "%s^3%s ^1adli oyuncunun gag cezasi bitmistir.", GAG_TAG, szName);
         
         log_to_file("mf_gag.log", "Sistem | Hedef: %s (%s) | Gag Suresi Doldu", szName, g_szAuthID[id]);
     }
@@ -158,12 +158,27 @@ public cmd_say(id) {
         read_args(szText, charsmax(szText));
         remove_quotes(szText);
         
-        // Gagli olsa bile '/' veya '.' ile baslayan komutlari engelleme
+        // Gagli olsa bile kullanabilecegi guvenli komutlar
         if (szText[0] == '/' || szText[0] == '.') {
-            return PLUGIN_CONTINUE;
+            new const szWhitelist[][] = { "/rank", "/top15", "/me", "/stats", ".rank", ".top15", ".me" };
+            new bool:bAllowed = false;
+            
+            for (new i = 0; i < sizeof(szWhitelist); i++) {
+                if (equal(szText, szWhitelist[i], strlen(szWhitelist[i]))) {
+                    bAllowed = true;
+                    break;
+                }
+            }
+            
+            if (bAllowed) {
+                return PLUGIN_CONTINUE;
+            }
+            
+            client_print_color(id, print_team_default, "%sSusturuldugunuz icin bu komutu kullanamazsiniz.", GAG_TAG);
+            return PLUGIN_HANDLED;
         }
         
-        client_print_color(id, print_team_default, "^4[ GAG ] ^1Susturuldugunuz icin yazi yazamazsiniz.");
+        client_print_color(id, print_team_default, "%sSusturuldugunuz icin yazi yazamazsiniz.", GAG_TAG);
         return PLUGIN_HANDLED;
     }
     return PLUGIN_CONTINUE;
@@ -176,24 +191,36 @@ public cmd_say_team(id) {
         remove_quotes(szText);
         
         if (szText[0] == '/' || szText[0] == '.') {
-            return PLUGIN_CONTINUE;
+            new const szWhitelist[][] = { "/rank", "/top15", "/me", "/stats", ".rank", ".top15", ".me" };
+            new bool:bAllowed = false;
+            
+            for (new i = 0; i < sizeof(szWhitelist); i++) {
+                if (equal(szText, szWhitelist[i], strlen(szWhitelist[i]))) {
+                    bAllowed = true;
+                    break;
+                }
+            }
+            
+            if (bAllowed) {
+                return PLUGIN_CONTINUE;
+            }
+            
+            client_print_color(id, print_team_default, "%sSusturuldugunuz icin bu komutu kullanamazsiniz.", GAG_TAG);
+            return PLUGIN_HANDLED;
         }
         
-        client_print_color(id, print_team_default, "^4[ GAG ] ^1Susturuldugunuz icin takim ici yazi yazamazsiniz.");
+        client_print_color(id, print_team_default, "%sSusturuldugunuz icin takim ici yazi yazamazsiniz.", GAG_TAG);
         return PLUGIN_HANDLED;
     }
     return PLUGIN_CONTINUE;
 }
 
-public fwd_VoiceSetClientListening(receiver, sender, listen) {
-    if (receiver == sender) return FMRES_IGNORED;
-    
+public refwd_CanPlayerHearPlayer(receiver, sender) {
     if (g_bIsGagged[sender]) {
-        engfunc(EngFunc_SetClientListening, receiver, sender, 0);
-        return FMRES_SUPERCEDE;
+        SetHookChainReturn(ATYPE_BOOL, false);
+        return HC_SUPERCEDE;
     }
-    
-    return FMRES_IGNORED;
+    return HC_CONTINUE;
 }
 
 // Natives
@@ -210,14 +237,12 @@ public bool:native_set_gag(plugin_id, num_params) {
     new szReason[64];
     get_string(4, szReason, charsmax(szReason));
     
+    // Delimiter Injection Korumasi
+    replace_all(szReason, charsmax(szReason), "^^", "");
+    
     if (!is_user_connected(target_id)) return false;
     
-    if (admin_id == target_id && !g_bIsGagged[target_id]) {
-        client_print_color(admin_id, print_team_default, "%sKendinizi gaglayamazsiniz!", GAG_TAG);
-        return false;
-    }
-    
-    if (access(target_id, ADMIN_IMMUNITY) && admin_id != 0 && !g_bIsGagged[target_id]) {
+    if (access(target_id, ADMIN_IMMUNITY) && admin_id != target_id && admin_id != 0 && !g_bIsGagged[target_id]) {
         client_print_color(admin_id, print_team_default, "%sDokunulmazligi olan bir oyuncuyu gaglayamazsiniz!", GAG_TAG);
         return false;
     }
@@ -276,16 +301,16 @@ public bool:native_set_gag(plugin_id, num_params) {
     }
     
     if (minutes == 0) {
-        client_print_color(0, print_team_default, "^4[ GAG ] ^3%s ^1yetkilisi, ^4%s ^1adli oyuncuyu ^3SINIRSIZ ^1sureyle gag'ladi. Sebep: ^3%s", szAdminName, szTargetName, szReason);
+        client_print_color(0, print_team_default, "%s^3%s ^1yetkilisi, ^4%s ^1adli oyuncuyu ^3SINIRSIZ ^1sureyle gag'ladi. Sebep: ^3%s", GAG_TAG, szAdminName, szTargetName, szReason);
         log_to_file("mf_gag.log", "Yetkili: %s (%s) | Hedef: %s (%s) | Sure: Sinirsiz | Sebep: %s", szAdminName, szAdminAuthID, szTargetName, g_szAuthID[target_id], szReason);
     } else if (bIsExtension) {
-        client_print_color(0, print_team_default, "^4[ GAG ] ^3%s ^1yetkilisi, ^4%s ^1adli oyuncunun gag suresini ^3%d dakika ^1uzatti. Sebep: ^3%s", szAdminName, szTargetName, iAddedMinutes, szReason);
+        client_print_color(0, print_team_default, "%s^3%s ^1yetkilisi, ^4%s ^1adli oyuncunun gag suresini ^3%d dakika ^1uzatti. Sebep: ^3%s", GAG_TAG, szAdminName, szTargetName, iAddedMinutes, szReason);
         log_to_file("mf_gag.log", "Yetkili: %s (%s) | Hedef: %s (%s) | Sure: %d Dakika Uzatildi | Sebep: %s", szAdminName, szAdminAuthID, szTargetName, g_szAuthID[target_id], iAddedMinutes, szReason);
     } else if (bIsShortening) {
-        client_print_color(0, print_team_default, "^4[ GAG ] ^3%s ^1yetkilisi, ^4%s ^1adli oyuncunun gag suresini ^3%d dakika ^1kisaltti. Sebep: ^3%s", szAdminName, szTargetName, iAddedMinutes, szReason);
+        client_print_color(0, print_team_default, "%s^3%s ^1yetkilisi, ^4%s ^1adli oyuncunun gag suresini ^3%d dakika ^1kisaltti. Sebep: ^3%s", GAG_TAG, szAdminName, szTargetName, iAddedMinutes, szReason);
         log_to_file("mf_gag.log", "Yetkili: %s (%s) | Hedef: %s (%s) | Sure: %d Dakika Kisaltildi | Sebep: %s", szAdminName, szAdminAuthID, szTargetName, g_szAuthID[target_id], iAddedMinutes, szReason);
     } else {
-        client_print_color(0, print_team_default, "^4[ GAG ] ^3%s ^1yetkilisi, ^4%s ^1adli oyuncuyu ^3%d dakika ^1sureyle gag'ladi. Sebep: ^3%s", szAdminName, szTargetName, minutes, szReason);
+        client_print_color(0, print_team_default, "%s^3%s ^1yetkilisi, ^4%s ^1adli oyuncuyu ^3%d dakika ^1sureyle gag'ladi. Sebep: ^3%s", GAG_TAG, szAdminName, szTargetName, minutes, szReason);
         log_to_file("mf_gag.log", "Yetkili: %s (%s) | Hedef: %s (%s) | Sure: %d Dakika | Sebep: %s", szAdminName, szAdminAuthID, szTargetName, g_szAuthID[target_id], minutes, szReason);
     }
     
@@ -316,7 +341,7 @@ public bool:native_remove_gag(plugin_id, num_params) {
         get_user_authid(admin_id, szAdminAuthID, charsmax(szAdminAuthID));
     }
     
-    client_print_color(0, print_team_default, "^4[ GAG ] ^3%s ^1yetkilisi, ^4%s ^1adli oyuncunun gag'ini kaldirdi.", szAdminName, szTargetName);
+    client_print_color(0, print_team_default, "%s^3%s ^1yetkilisi, ^4%s ^1adli oyuncunun gag'ini kaldirdi.", GAG_TAG, szAdminName, szTargetName);
     log_to_file("mf_gag.log", "Yetkili: %s (%s) | Hedef: %s (%s) | Gag Kaldirildi", szAdminName, szAdminAuthID, szTargetName, g_szAuthID[target_id]);
     
     return true;

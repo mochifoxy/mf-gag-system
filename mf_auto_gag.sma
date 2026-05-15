@@ -13,7 +13,8 @@ new Trie:g_tBadWords;
 new Array:g_aBadWords;
 new g_iWarnings[33];
 new g_iOffenses[33];
-new g_iLastActionTime[33];
+new g_iWarnDecayTimer[33]; // YENI: Uyari icin ozel kronometre
+new g_iOffenseDecayTimer[33]; // YENI: Ihlal icin ozel kronometre
 
 // Flood Korumasi icin degiskenler
 new Float:g_flLastTalkTime[33];
@@ -24,6 +25,7 @@ new g_pCvarEnabled;
 new g_pCvarFloodTime;
 new g_pCvarFloodLimit;
 new g_pCvarDecayTime;
+new g_pCvarWarnDecayTime;
 new g_pCvarWarnLimit;
 new g_pCvarDefaultTime;
 
@@ -44,6 +46,7 @@ public plugin_init() {
     g_pCvarFloodTime = create_cvar("amx_autogag_flood_time", "2.0");
     g_pCvarFloodLimit = create_cvar("amx_autogag_flood_limit", "3");
     g_pCvarDecayTime = create_cvar("amx_autogag_decay_time", "3600"); // 3600 saniye = 1 saat
+    g_pCvarWarnDecayTime = create_cvar("amx_autogag_warn_decay_time", "900"); // 15 Dakika
     g_pCvarWarnLimit = create_cvar("amx_autogag_warning_limit", "3");
     g_pCvarDefaultTime = create_cvar("amx_autogag_default_time", "15");
     
@@ -60,7 +63,46 @@ public plugin_init() {
 public plugin_end() {
     TrieDestroy(g_tBadWords);
     ArrayDestroy(g_aBadWords);
-    nvault_close(g_Vault);
+    
+    // Map kapanmadan once iceride kalan herkesin kaydini diske yaz
+    new szAuthID[32], szIP[32], szData[48];
+    for (new id = 1; id <= 32; id++) {
+        if (is_user_connected(id) && !is_user_bot(id) && !is_user_hltv(id)) {
+            if (g_iOffenses[id] > 0 || g_iWarnings[id] > 0) {
+                get_user_authid(id, szAuthID, charsmax(szAuthID));
+                get_user_ip(id, szIP, charsmax(szIP), 1);
+                
+                formatex(szData, charsmax(szData), "%d %d %d %d", g_iOffenses[id], g_iWarnings[id], g_iWarnDecayTimer[id], g_iOffenseDecayTimer[id]);
+                if (g_Vault) {
+                    nvault_set(g_Vault, szAuthID, szData);
+                    nvault_set(g_Vault, szIP, szData);
+                }
+            }
+        }
+    }
+    
+    if (g_Vault) {
+        nvault_close(g_Vault);
+    }
+}
+
+public client_disconnected(id) {
+    if (is_user_bot(id) || is_user_hltv(id)) return;
+    
+    // Sadece uyarisi veya ihlali olanlari kaydet (Diski bosuna yormamak icin)
+    if (g_iOffenses[id] > 0 || g_iWarnings[id] > 0) {
+        new szAuthID[32], szIP[32], szData[48];
+        get_user_authid(id, szAuthID, charsmax(szAuthID));
+        get_user_ip(id, szIP, charsmax(szIP), 1);
+        
+        formatex(szData, charsmax(szData), "%d %d %d %d", g_iOffenses[id], g_iWarnings[id], g_iWarnDecayTimer[id], g_iOffenseDecayTimer[id]);
+        nvault_set(g_Vault, szAuthID, szData);
+        nvault_set(g_Vault, szIP, szData);
+    }
+    
+    // Hafizayi temizle
+    g_iOffenses[id] = 0;
+    g_iWarnings[id] = 0;
 }
 
 public client_putinserver(id) {
@@ -77,61 +119,72 @@ public client_putinserver(id) {
 public load_offenses(id) {
     if (!is_user_connected(id)) return;
     
-    // nVault'tan veri oku (Hem ID hem IP kontrolu)
     new szAuthID[32], szIP[32];
     get_user_authid(id, szAuthID, charsmax(szAuthID));
     get_user_ip(id, szIP, charsmax(szIP), 1);
     
-    new iCountID = 0, iWarningsID = 0, iTimestampID = 0;
-    new iCountIP = 0, iWarningsIP = 0, iTimestampIP = 0;
-    new szData[48], szCount[10], szWarnings[10], szTime[20];
+    new iCountID = 0, iWarningsID = 0, iWarnTimeID = 0, iOffTimeID = 0;
+    new iCountIP = 0, iWarningsIP = 0, iWarnTimeIP = 0, iOffTimeIP = 0;
+    new szData[64], szCount[10], szWarnings[10], szWarnTime[20], szOffTime[20];
     
-    // SteamID ile kontrol
+    // SteamID Kontrolu
     if (nvault_get(g_Vault, szAuthID, szData, charsmax(szData))) {
-        parse(szData, szCount, charsmax(szCount), szWarnings, charsmax(szWarnings), szTime, charsmax(szTime));
+        parse(szData, szCount, charsmax(szCount), szWarnings, charsmax(szWarnings), szWarnTime, charsmax(szWarnTime), szOffTime, charsmax(szOffTime));
         iCountID = str_to_num(szCount);
         iWarningsID = str_to_num(szWarnings);
-        iTimestampID = str_to_num(szTime);
+        iWarnTimeID = str_to_num(szWarnTime);
+        iOffTimeID = szOffTime[0] ? str_to_num(szOffTime) : iWarnTimeID; // Eski kayitlarla uyumlu (Fallback)
     }
     
-    // IP ile kontrol
+    // IP Kontrolu
     if (nvault_get(g_Vault, szIP, szData, charsmax(szData))) {
-        parse(szData, szCount, charsmax(szCount), szWarnings, charsmax(szWarnings), szTime, charsmax(szTime));
+        parse(szData, szCount, charsmax(szCount), szWarnings, charsmax(szWarnings), szWarnTime, charsmax(szWarnTime), szOffTime, charsmax(szOffTime));
         iCountIP = str_to_num(szCount);
         iWarningsIP = str_to_num(szWarnings);
-        iTimestampIP = str_to_num(szTime);
+        iWarnTimeIP = str_to_num(szWarnTime);
+        iOffTimeIP = szOffTime[0] ? str_to_num(szOffTime) : iWarnTimeIP;
     }
     
     new iCurrentTime = get_systime();
     new iDecayTime = get_pcvar_num(g_pCvarDecayTime);
+    new iWarnDecay = get_pcvar_num(g_pCvarWarnDecayTime);
     
-    // 24 saat kontrolu (86400 saniye)
-    if (iCurrentTime - iTimestampID > 86400) {
-        iCountID = 0;
-        iWarningsID = 0;
-    } else if (iDecayTime > 0) {
-        new iPassed = (iCurrentTime - iTimestampID) / iDecayTime;
+    // ID Icin Offline Decay (KADEMELI)
+    if (iWarnTimeID > 0 && iWarnDecay > 0) {
+        new iPassed = (iCurrentTime - iWarnTimeID) / iWarnDecay;
+        if (iPassed > 0) {
+            iWarningsID = max(0, iWarningsID - iPassed);
+            iWarnTimeID += (iPassed * iWarnDecay); // Kronometreyi sadece kullanilan sure kadar ileri sar
+        }
+    }
+    if (iOffTimeID > 0 && iDecayTime > 0) {
+        new iPassed = (iCurrentTime - iOffTimeID) / iDecayTime;
         if (iPassed > 0) {
             iCountID = max(0, iCountID - iPassed);
-            iWarningsID = 0;
+            iOffTimeID += (iPassed * iDecayTime);
         }
     }
     
-    if (iCurrentTime - iTimestampIP > 86400) {
-        iCountIP = 0;
-        iWarningsIP = 0;
-    } else if (iDecayTime > 0) {
-        new iPassed = (iCurrentTime - iTimestampIP) / iDecayTime;
+    // IP Icin Offline Decay (KADEMELI)
+    if (iWarnTimeIP > 0 && iWarnDecay > 0) {
+        new iPassed = (iCurrentTime - iWarnTimeIP) / iWarnDecay;
+        if (iPassed > 0) {
+            iWarningsIP = max(0, iWarningsIP - iPassed);
+            iWarnTimeIP += (iPassed * iWarnDecay);
+        }
+    }
+    if (iOffTimeID > 0 && iDecayTime > 0) {
+        new iPassed = (iCurrentTime - iOffTimeIP) / iDecayTime;
         if (iPassed > 0) {
             iCountIP = max(0, iCountIP - iPassed);
-            iWarningsIP = 0;
+            iOffTimeIP += (iPassed * iDecayTime);
         }
     }
     
-    // Hangisi daha buyukse onu al (Cezadan kacamasin)
     g_iOffenses[id] = max(iCountID, iCountIP);
     g_iWarnings[id] = max(iWarningsID, iWarningsIP);
-    g_iLastActionTime[id] = max(iTimestampID, iTimestampIP);
+    g_iWarnDecayTimer[id] = max(iWarnTimeID, iWarnTimeIP);
+    g_iOffenseDecayTimer[id] = max(iOffTimeID, iOffTimeIP);
 }
 
 LoadWords() {
@@ -160,9 +213,20 @@ LoadWords() {
             continue;
         }
         
+        new bool:bIsWildcard = false;
+        new iLen = strlen(szLine);
+        if (iLen > 1 && szLine[iLen - 1] == '*') {
+            bIsWildcard = true;
+            szLine[iLen - 1] = '^0';
+            trim(szLine); // Yildiz silindikten sonra bosluk kaldiysa temizle
+        }
+        
         CleanWord(szLine);
         
         if (szLine[0] != '^0') {
+            if (bIsWildcard) {
+                add(szLine, charsmax(szLine), "*");
+            }
             TrieSetCell(g_tBadWords, szLine, 1);
             ArrayPushString(g_aBadWords, szLine);
         }
@@ -189,23 +253,28 @@ public cmd_Say(id) {
     new szName[32];
     get_user_name(id, szName, charsmax(szName));
     
-    // --- Otomatik Sicil Temizleme (Decay) ---
+    // --- KADEMELI SICIL TEMIZLEME ---
     new iCurrentTime = get_systime();
     new iDecayTime = get_pcvar_num(g_pCvarDecayTime);
-    if (iDecayTime > 0 && g_iLastActionTime[id] > 0) {
-        new iPassed = (iCurrentTime - g_iLastActionTime[id]) / iDecayTime;
-        if (iPassed > 0) {
+    new iWarnDecay = get_pcvar_num(g_pCvarWarnDecayTime);
+    
+    // Ihlal Azalmasi (1 Saatlik Kronometre)
+    if (g_iOffenseDecayTimer[id] > 0 && iDecayTime > 0) {
+        new iDiff = iCurrentTime - g_iOffenseDecayTimer[id];
+        if (iDiff >= iDecayTime) {
+            new iPassed = iDiff / iDecayTime;
             g_iOffenses[id] = max(0, g_iOffenses[id] - iPassed);
-            g_iWarnings[id] = 0;
-            g_iLastActionTime[id] = iCurrentTime;
-            
-            // Dusurulmus ihlali nVault'a kaydet (cik-gir sonrasi tutarli kalsin)
-            new szDecayAuthID[32], szDecayIP[32], szDecayData[48];
-            get_user_authid(id, szDecayAuthID, charsmax(szDecayAuthID));
-            get_user_ip(id, szDecayIP, charsmax(szDecayIP), 1);
-            formatex(szDecayData, charsmax(szDecayData), "%d %d %d", g_iOffenses[id], g_iWarnings[id], iCurrentTime);
-            nvault_set(g_Vault, szDecayAuthID, szDecayData);
-            nvault_set(g_Vault, szDecayIP, szDecayData);
+            g_iOffenseDecayTimer[id] += (iPassed * iDecayTime); // Sadece o kadar ileri sar!
+        }
+    }
+
+    // Uyari Azalmasi (15 Dakikalik Kronometre)
+    if (g_iWarnDecayTimer[id] > 0 && iWarnDecay > 0) {
+        new iDiff = iCurrentTime - g_iWarnDecayTimer[id];
+        if (iDiff >= iWarnDecay) {
+            new iPassed = iDiff / iWarnDecay;
+            g_iWarnings[id] = max(0, g_iWarnings[id] - iPassed);
+            g_iWarnDecayTimer[id] += (iPassed * iWarnDecay); // Sadece o kadar ileri sar!
         }
     }
     
@@ -215,8 +284,10 @@ public cmd_Say(id) {
         g_iMessageCount[id]++;
         if (g_iMessageCount[id] >= get_pcvar_num(g_pCvarFloodLimit)) {
             g_iWarnings[id]++;
+            g_iWarnDecayTimer[id] = get_systime();
+            g_iOffenseDecayTimer[id] = get_systime();
             
-            client_print_color(id, print_team_default, "%sCok hizli mesaj gonderiyorsunuz (Flood)! Uyari: ^3%d/%d", AUTOGAG_TAG, g_iWarnings[id], get_pcvar_num(g_pCvarWarnLimit));
+            client_print_color(id, print_team_default, "%sFlood yaptiginiz icin uyari aldiniz! (%d/%d)", AUTOGAG_TAG, g_iWarnings[id], get_pcvar_num(g_pCvarWarnLimit));
             
             if (g_iWarnings[id] >= get_pcvar_num(g_pCvarWarnLimit)) {
                 g_iOffenses[id]++;
@@ -232,14 +303,6 @@ public cmd_Say(id) {
                 
                 mfgag_set_gag(0, id, iGagTime, szReason);
                 g_iWarnings[id] = 0;
-                
-                // nVault'a kaydet (Hem ID hem IP)
-                new szAuthID[32], szIP[32], szData[48];
-                get_user_authid(id, szAuthID, charsmax(szAuthID));
-                get_user_ip(id, szIP, charsmax(szIP), 1);
-                formatex(szData, charsmax(szData), "%d %d %d", g_iOffenses[id], g_iWarnings[id], get_systime());
-                nvault_set(g_Vault, szAuthID, szData);
-                nvault_set(g_Vault, szIP, szData);
                 
                 log_amx("[AutoGag] %s flood nedeniyle otomatik gaglandi. Sure: %d Dk, Ihlal: %d", szName, iGagTime, g_iOffenses[id]);
             }
@@ -272,7 +335,7 @@ public cmd_Say(id) {
     new szCurrentBadWord[32];
     for (new i = 0; i < ArraySize(g_aBadWords); i++) {
         ArrayGetString(g_aBadWords, i, szCurrentBadWord, charsmax(szCurrentBadWord));
-        if (containi(szSpaceless, szCurrentBadWord) != -1) {
+        if (strlen(szCurrentBadWord) >= 4 && containi(szSpaceless, szCurrentBadWord) != -1) {
             bFound = true;
             break;
         }
@@ -324,7 +387,25 @@ public cmd_Say(id) {
         }
         
         // Normal kelime kontrolu
+        new bool:bWordMatched = false;
         if (TrieKeyExists(g_tBadWords, szClean)) {
+            bWordMatched = true;
+        } else {
+            new szCurrentBadWord[32];
+            for (new i = 0; i < ArraySize(g_aBadWords); i++) {
+                ArrayGetString(g_aBadWords, i, szCurrentBadWord, charsmax(szCurrentBadWord));
+                new iLen = strlen(szCurrentBadWord);
+                if (iLen > 1 && szCurrentBadWord[iLen - 1] == '*') {
+                    szCurrentBadWord[iLen - 1] = '^0';
+                    if (equal(szClean, szCurrentBadWord, iLen - 1)) {
+                        bWordMatched = true;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        if (bWordMatched) {
             bFound = true;
             if (!bFirst) add(szNewMessage, charsmax(szNewMessage), " ");
             add(szNewMessage, charsmax(szNewMessage), "*****");
@@ -350,29 +431,8 @@ public cmd_Say(id) {
     
     if (bFound) {
         g_iWarnings[id]++;
-        
-        new szCmd[10];
-        read_argv(0, szCmd, charsmax(szCmd));
-        
-        new bTeamChat = equal(szCmd, "say_team");
-        
-        // Crash Korumasi: Yuzde isaretlerini kacis karakteri yap
-        replace_all(szNewMessage, charsmax(szNewMessage), "%", "%%");
-        
-        if (bTeamChat) {
-            new iTeam = get_user_team(id);
-            new players[32], pnum, target;
-            get_players(players, pnum, "ch");
-            
-            for (new i = 0; i < pnum; i++) {
-                target = players[i];
-                if (get_user_team(target) == iTeam) {
-                    client_print_color(target, id, "^3(TEAM) %s :  ^1%s", szName, szNewMessage);
-                }
-            }
-        } else {
-            client_print_color(0, id, "^3%s :  ^1%s", szName, szNewMessage);
-        }
+        g_iWarnDecayTimer[id] = get_systime();
+        g_iOffenseDecayTimer[id] = get_systime();
         
         if (g_iWarnings[id] >= get_pcvar_num(g_pCvarWarnLimit)) {
             g_iOffenses[id]++;
@@ -389,28 +449,14 @@ public cmd_Say(id) {
             mfgag_set_gag(0, id, iGagTime, szReason);
             g_iWarnings[id] = 0;
             
-            // nVault'a kaydet (Hem ID hem IP)
-            new szAuthID[32], szIP[32], szData[48];
-            get_user_authid(id, szAuthID, charsmax(szAuthID));
-            get_user_ip(id, szIP, charsmax(szIP), 1);
-            formatex(szData, charsmax(szData), "%d %d %d", g_iOffenses[id], g_iWarnings[id], get_systime());
-            nvault_set(g_Vault, szAuthID, szData);
-            nvault_set(g_Vault, szIP, szData);
-            
             log_amx("[AutoGag] %s otomatik gaglandi. Sure: %d Dk, Ihlal: %d, Neden: Yasakli Kelime", szName, iGagTime, g_iOffenses[id]);
-        } else {
-            client_print_color(id, print_team_default, "%sLutfen yasakli kelime kullanmayiniz! Uyari: ^3%d/%d", AUTOGAG_TAG, g_iWarnings[id], get_pcvar_num(g_pCvarWarnLimit));
             
-            // nVault'a kaydet (Uyarilari da sakla)
-            new szAuthID[32], szIP[32], szData[48];
-            get_user_authid(id, szAuthID, charsmax(szAuthID));
-            get_user_ip(id, szIP, charsmax(szIP), 1);
-            formatex(szData, charsmax(szData), "%d %d %d", g_iOffenses[id], g_iWarnings[id], get_systime());
-            nvault_set(g_Vault, szAuthID, szData);
-            nvault_set(g_Vault, szIP, szData);
+            return PLUGIN_HANDLED; // Gaglandigi icin mesaji engelle
+        } else {
+            client_print_color(id, print_team_default, "%sLutfen yasakli kelime kullanmayiniz! Mesajiniz engellendi. Uyari: ^3%d/%d", AUTOGAG_TAG, g_iWarnings[id], get_pcvar_num(g_pCvarWarnLimit));
+            
+            return PLUGIN_HANDLED; // Mesajin gorunmesini engelle
         }
-        
-        return PLUGIN_HANDLED;
     }
     
     return PLUGIN_CONTINUE;
@@ -554,7 +600,8 @@ public cmd_ClearOffenses(id, level, cid) {
     
     g_iOffenses[target] = 0;
     g_iWarnings[target] = 0;
-    g_iLastActionTime[target] = get_systime();
+    g_iWarnDecayTimer[target] = get_systime();
+    g_iOffenseDecayTimer[target] = get_systime();
     
     new szName[32], szAdminName[32];
     get_user_name(target, szName, charsmax(szName));
@@ -564,7 +611,7 @@ public cmd_ClearOffenses(id, level, cid) {
     new szAuthID[32], szIP[32], szData[48];
     get_user_authid(target, szAuthID, charsmax(szAuthID));
     get_user_ip(target, szIP, charsmax(szIP), 1);
-    formatex(szData, charsmax(szData), "0 0 %d", g_iLastActionTime[target]);
+    formatex(szData, charsmax(szData), "0 0 %d %d", g_iWarnDecayTimer[target], g_iOffenseDecayTimer[target]);
     nvault_set(g_Vault, szAuthID, szData);
     nvault_set(g_Vault, szIP, szData);
     
@@ -579,43 +626,66 @@ CleanWord(szWord[]) {
     new iInIndex = 0;
     new c;
     new iLastChar = 0;
-    
+
+    // Tek bir O(N) pass ile karakterleri tarıyoruz
     while ((c = szWord[iInIndex++]) != 0) {
-        switch (c) {
-            case 222: c = 's'; // Ş
-            case 254: c = 's'; // ş
-            case 221: c = 'i'; // İ
-            case 253: c = 'i'; // ı
-            case 208: c = 'g'; // Ğ
-            case 240: c = 'g'; // ğ
-            case 220: c = 'u'; // Ü
-            case 252: c = 'u'; // ü
-            case 214: c = 'o'; // Ö
-            case 246: c = 'o'; // ö
-            case 199: c = 'c'; // Ç
-            case 231: c = 'c'; // ç
-            
-            case '4': c = 'a';
-            case '3': c = 'e';
-            case '1': c = 'i';
-            case '0': c = 'o';
-            case '7': c = 't';
-            case '5': c = 's';
-            case '8': c = 'b';
-        }
         
+        // 1. ADIM: UTF-8 (2 Byte'lık Türkçe Karakter) Tespiti
+        if (c == 0xC3) {
+            c = szWord[iInIndex++];
+            switch(c) {
+                case 0xA7, 0x87: c = 'c'; // ç, Ç
+                case 0xB6, 0x96: c = 'o'; // ö, Ö
+                case 0xBC, 0x9C: c = 'u'; // ü, Ü
+                default: { iInIndex--; c = 0xC3; } // Eşleşmediyse geri al
+            }
+        }
+        else if (c == 0xC4) {
+            c = szWord[iInIndex++];
+            switch(c) {
+                case 0xB1, 0xB0: c = 'i'; // ı, İ
+                case 0x9F, 0x9E: c = 'g'; // ğ, Ğ
+                default: { iInIndex--; c = 0xC4; }
+            }
+        }
+        else if (c == 0xC5) {
+            c = szWord[iInIndex++];
+            switch(c) {
+                case 0x9F, 0x9E: c = 's'; // ş, Ş
+                default: { iInIndex--; c = 0xC5; }
+            }
+        }
+        else {
+            // 2. ADIM: ANSI Türkçe Karakterler ve Leetspeak Switch
+            switch (c) {
+                case 222, 254, '5': c = 's'; // Ş, ş, 5
+                case 221, 253, '1': c = 'i'; // İ, ı, 1
+                case 208, 240:      c = 'g'; // Ğ, ğ
+                case 220, 252:      c = 'u'; // Ü, ü
+                case 214, 246, '0': c = 'o'; // Ö, ö, 0
+                case 199, 231:      c = 'c'; // Ç, ç
+                
+                case '4': c = 'a';
+                case '3': c = 'e';
+                case '7': c = 't';
+                case '8': c = 'b';
+            }
+        }
+
+        // 3. ADIM: Küçültme (ToLowerCase)
         if ('A' <= c && c <= 'Z') {
             c += ('a' - 'A');
         }
-        
+
+        // 4. ADIM: İstenmeyen karakterleri filtreleme ve tekrarları engelleme (Deduplication)
         if (('a' <= c && c <= 'z') || ('0' <= c && c <= '9')) {
-            if (c == iLastChar) {
-                continue;
-            }
+            if (c == iLastChar) continue; // Aynı harf arka arkaya geldiyse atla
             
             szWord[iOutIndex++] = c;
             iLastChar = c;
         }
     }
-    szWord[iOutIndex] = '^0';
+    szWord[iOutIndex] = '^0'; // Stringi bitir
 }
+
+

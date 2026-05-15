@@ -32,6 +32,11 @@ public cmd_gag(id, level, cid) {
     new target = cmd_target(id, szArg1, CMDTARGET_OBEY_IMMUNITY | CMDTARGET_ALLOW_SELF);
     if (!target) return PLUGIN_HANDLED;
     
+    if (!isdigit(szArg2[0]) && szArg2[0] != '^0') {
+         console_print(id, "[GAG] Gecersiz sure! Sadece sayi kullanin.");
+         return PLUGIN_HANDLED;
+    }
+    
     new iTime = str_to_num(szArg2);
     if (iTime < 0) iTime = 0;
     
@@ -82,6 +87,16 @@ public cmd_say(id) {
         
         new target = cmd_target(id, szTarget, CMDTARGET_OBEY_IMMUNITY | CMDTARGET_ALLOW_SELF);
         if (!target) return PLUGIN_HANDLED;
+        
+        if (szTime[0] == '^0') {
+            client_print_color(id, print_team_default, "%sLutfen sure belirtin! Kullanim: ^4/gag ^3<isim> ^1<sure>", GAG_TAG);
+            return PLUGIN_HANDLED;
+        }
+        
+        if (!isdigit(szTime[0])) {
+             client_print_color(id, print_team_default, "%sGecersiz sure! Sadece sayi kullanin.", GAG_TAG);
+             return PLUGIN_HANDLED;
+        }
         
         new iTime = str_to_num(szTime);
         if (iTime < 0) iTime = 0;
