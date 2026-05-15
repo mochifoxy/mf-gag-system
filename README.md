@@ -125,6 +125,30 @@ addons/amxmodx/
 | `amx_autogag_warn_decay_time` | `900` | Uyarı silinme süresi (saniye). `0` = kapalı |
 
 ---
+## 📸 Görseller
+
+### 🖥️ Menü Arayüzleri
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/1f0bb7f6-b40d-4d79-acca-866d2a423206" alt="Gag Menüsü" width="200" />
+  <img src="https://github.com/user-attachments/assets/52ac12ee-e978-4ffc-9290-0d5f22b06521" alt="Süre Menüsü" width="210" />
+  <img src="https://github.com/user-attachments/assets/6d831fc4-bbd2-4bd5-8745-4f8474f6d918" alt="Sebep Menüsü" width="180" />
+  <img src="https://github.com/user-attachments/assets/506d9d56-a978-4841-93ca-af79defcce7a" alt="Gaglılar Menüsü" width="260" />
+</p>
+
+### 💬 Chat Bildirimleri
+
+* **Küfür Uyarı Mesajı:**
+  <br><img src="https://github.com/user-attachments/assets/ba9542f9-4011-4ffa-be72-0401ed9e6fe0" alt="Gag Uyarı" />
+
+* **Limit Dolunca Otomatik Gag:**
+  <br><img src="https://github.com/user-attachments/assets/e7be8ca7-53f1-4eeb-b0ad-7a92e710fc07" alt="Limit Dolunca Gag" />
+
+* **Kademeli İhlal Katlanma Bildirimi:**
+  <br><img src="https://github.com/user-attachments/assets/5f07707e-8e7a-41da-b025-8d483815169b" alt="İhlal Aşaması" />
+
+* **Menüden Atılan Gag Bilgilendirmesi:**
+  <br><img src="https://github.com/user-attachments/assets/380cc45e-454b-4d78-9d9b-1adacc3cccbc" alt="Menü Mesajı" />
+
 
 ## 👨‍💻 Yapımcılar
 *   **mochifoxy** & **FoxyBlinks**
