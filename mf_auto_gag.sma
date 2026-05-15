@@ -11,6 +11,7 @@
 
 new Trie:g_tBadWords;
 new Array:g_aBadWords;
+new Array:g_aWhitelist;
 new g_iWarnings[33];
 new g_iOffenses[33];
 new g_iWarnDecayTimer[33]; // YENI: Uyari icin ozel kronometre
@@ -53,6 +54,9 @@ public plugin_init() {
     g_tBadWords = TrieCreate();
     g_aBadWords = ArrayCreate(32);
     LoadWords();
+    
+    g_aWhitelist = ArrayCreate(32);
+    LoadWhitelist();
     
     g_Vault = nvault_open("autogag_offenses");
     
@@ -187,6 +191,44 @@ public load_offenses(id) {
     g_iOffenseDecayTimer[id] = max(iOffTimeID, iOffTimeIP);
 }
 
+LoadWhitelist() {
+    new szFilePath[128];
+    get_configsdir(szFilePath, charsmax(szFilePath));
+    format(szFilePath, charsmax(szFilePath), "%s/whitelist.txt", szFilePath);
+    
+    if (!file_exists(szFilePath)) {
+        new f = fopen(szFilePath, "wt");
+        if (f) {
+            fprintf(f, "// Buraya kufur filtresine takilmasini istemediginiz kelimeleri yazabilirsiniz^n");
+            fprintf(f, "// Her satira bir kelime^n");
+            fprintf(f, "nasilsin^n");
+            fclose(f);
+        }
+    }
+    
+    new f = fopen(szFilePath, "rt");
+    if (!f) return;
+    
+    new szLine[64], szClean[64];
+    while (!feof(f)) {
+        fgets(f, szLine, charsmax(szLine));
+        trim(szLine);
+        
+        if (szLine[0] == '^0' || szLine[0] == ';' || (szLine[0] == '/' && szLine[1] == '/')) {
+            continue;
+        }
+        
+        strtolower(szLine);
+        copy(szClean, charsmax(szClean), szLine);
+        CleanWord(szClean);
+        
+        if (szClean[0] != '^0') {
+            ArrayPushString(g_aWhitelist, szClean);
+        }
+    }
+    fclose(f);
+}
+
 LoadWords() {
     new szFilePath[128];
     get_configsdir(szFilePath, charsmax(szFilePath));
@@ -240,6 +282,9 @@ public cmd_Say(id) {
     if (!is_user_connected(id)) return PLUGIN_CONTINUE;
     
     if (!get_pcvar_num(g_pCvarEnabled)) return PLUGIN_CONTINUE;
+    
+    // Eger oyuncu zaten gagliysa bosuna islemciyi yorma
+    if (mfgag_is_gagged(id)) return PLUGIN_CONTINUE;
     
     new szMessage[192];
     read_args(szMessage, charsmax(szMessage));
@@ -331,6 +376,15 @@ public cmd_Say(id) {
     }
     szSpaceless[iOutIndex] = '^0';
     CleanWord(szSpaceless);
+    
+    // --- Whitelist (Beyaz Liste) Filtresi ---
+    new szWhitelistWord[32];
+    for (new i = 0; i < ArraySize(g_aWhitelist); i++) {
+        ArrayGetString(g_aWhitelist, i, szWhitelistWord, charsmax(szWhitelistWord));
+        if (szWhitelistWord[0] != '^0') {
+            replace_all(szSpaceless, charsmax(szSpaceless), szWhitelistWord, "");
+        }
+    }
     
     new szCurrentBadWord[32];
     for (new i = 0; i < ArraySize(g_aBadWords); i++) {
