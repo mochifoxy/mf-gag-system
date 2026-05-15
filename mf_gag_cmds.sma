@@ -15,6 +15,14 @@ public plugin_init() {
     register_concmd("amx_gag", "cmd_gag", ADMIN_KICK, "<nick/userid> <sure dk>");
     register_concmd("amx_ungag", "cmd_ungag", ADMIN_KICK, "<nick/userid>");
     
+    // Ozel Komutlar (Cakisma onlemek icin)
+    register_concmd("amx_mgag", "cmd_gag", ADMIN_KICK, "<nick/userid> <sure dk>");
+    register_concmd("amx_mungag", "cmd_ungag", ADMIN_KICK, "<nick/userid>");
+    
+    // Kisaltmalar
+    register_concmd("amx_mg", "cmd_gag", ADMIN_KICK, "<nick/userid> <sure dk>");
+    register_concmd("amx_mug", "cmd_ungag", ADMIN_KICK, "<nick/userid>");
+    
     // Chat Komutları Yakalayıcı (Gizli komut için en iyi yöntem)
     register_clcmd("say", "cmd_say");
     register_clcmd("say_team", "cmd_say");
@@ -77,7 +85,7 @@ public cmd_say(id) {
     new szCmd[16], szTarget[32], szTime[32], szReason[64];
     parse(szText, szCmd, charsmax(szCmd), szTarget, charsmax(szTarget), szTime, charsmax(szTime), szReason, charsmax(szReason));
     
-    if (equali(szCmd, "/gag")) {
+    if (equali(szCmd, "/gag") || equali(szCmd, "/mgag") || equali(szCmd, "/mg")) {
         if (!access(id, ADMIN_KICK)) return PLUGIN_CONTINUE;
         
         if (szTarget[0] == '^0') {
@@ -108,7 +116,7 @@ public cmd_say(id) {
         mfgag_set_gag(id, target, iTime, szReason);
         return PLUGIN_HANDLED; // Gizle
     }
-    else if (equali(szCmd, "/ungag")) {
+    else if (equali(szCmd, "/ungag") || equali(szCmd, "/mungag") || equali(szCmd, "/mug")) {
         if (!access(id, ADMIN_KICK)) return PLUGIN_CONTINUE;
         
         if (szTarget[0] == '^0') {

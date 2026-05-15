@@ -31,6 +31,20 @@ public plugin_init() {
     register_clcmd("say /ugm", "cmd_ungagmenu");
     register_clcmd("say_team /ugm", "cmd_ungagmenu");
     
+    // MochiGag Ozel Komutlari ve Kisaltmalari
+    register_clcmd("say /mgagmenu", "cmd_gagmenu");
+    register_clcmd("say_team /mgagmenu", "cmd_gagmenu");
+    register_clcmd("say /mungagmenu", "cmd_ungagmenu");
+    register_clcmd("say_team /mungagmenu", "cmd_ungagmenu");
+    
+    register_clcmd("say /mgm", "cmd_gagmenu");
+    register_clcmd("say_team /mgm", "cmd_gagmenu");
+    register_clcmd("say /mugm", "cmd_ungagmenu");
+    register_clcmd("say_team /mugm", "cmd_ungagmenu");
+    
+    register_clcmd("amx_mgagmenu", "cmd_gagmenu");
+    register_clcmd("amx_mungagmenu", "cmd_ungagmenu");
+    
     register_clcmd("custom_gag_time", "cmd_CustomGagTime");
     register_clcmd("custom_gag_reason", "cmd_CustomGagReason");
 }
