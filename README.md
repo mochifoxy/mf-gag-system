@@ -96,6 +96,13 @@ addons/amxmodx/
 | `say /ungagmenu` veya `/ugm` | Gaglı oyuncuların listesini doğrudan açar |
 | `say /gag <isim/userid> <sure>` | Chat üzerinden hızlı gag atar |
 | `say /ungag <isim/userid>` | Chat üzerinden gag kaldırır |
+| `say /mgagmenu` veya `/mgm` | MochiGag menüsünü açar (Alternatif) |
+| `say /mungagmenu` veya `/mugm` | MochiGag gaglılar listesini açar (Alternatif) |
+| `say /mgag` veya `/mg` | MochiGag chat komutu (Alternatif) |
+| `say /mungag` veya `/mug` | MochiGag chat ungag komutu (Alternatif) |
+| `amx_gag` / `amx_mgag` / `amx_mg` | Konsoldan hızlı gag atar |
+| `amx_ungag` / `amx_mungag` / `amx_mug` | Konsoldan hızlı gag kaldırır |
+| `amx_gagmenu` / `amx_mgagmenu` | Konsoldan gag menüsünü açar |
 
 ### 🔑 Admin Komutları (RCON Yetkisi Gerekir)
 
