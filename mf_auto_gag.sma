@@ -107,6 +107,7 @@ public client_disconnected(id) {
     // Hafizayi temizle
     g_iOffenses[id] = 0;
     g_iWarnings[id] = 0;
+    remove_task(id + 5000);
 }
 
 public client_putinserver(id) {
@@ -117,10 +118,11 @@ public client_putinserver(id) {
     
     if (is_user_bot(id) || is_user_hltv(id)) return;
     
-    set_task(1.0, "load_offenses", id);
+    set_task(1.0, "load_offenses", id + 5000);
 }
 
-public load_offenses(id) {
+public load_offenses(taskid) {
+    new id = taskid - 5000; // Offseti geri al
     if (!is_user_connected(id)) return;
     
     new szAuthID[32], szIP[32];
@@ -177,7 +179,7 @@ public load_offenses(id) {
             iWarnTimeIP += (iPassed * iWarnDecay);
         }
     }
-    if (iOffTimeID > 0 && iDecayTime > 0) {
+    if (iOffTimeIP > 0 && iDecayTime > 0) {
         new iPassed = (iCurrentTime - iOffTimeIP) / iDecayTime;
         if (iPassed > 0) {
             iCountIP = max(0, iCountIP - iPassed);
@@ -293,7 +295,7 @@ public cmd_Say(id) {
     
     if (szMessage[0] == '^0') return PLUGIN_CONTINUE;
     
-    if (szMessage[0] == '/' || szMessage[0] == '.') return PLUGIN_CONTINUE;
+    // if (szMessage[0] == '/' || szMessage[0] == '.') return PLUGIN_CONTINUE; // bug fix
     
     new szName[32];
     get_user_name(id, szName, charsmax(szName));
@@ -362,123 +364,115 @@ public cmd_Say(id) {
     // ----------------------
     
     new bool:bFound = false;
-    new szNewMessage[192];
-    
-    // --- Nukleer Blok (Bosluksuz Arama) ---
-    new szSpaceless[192];
-    copy(szSpaceless, charsmax(szSpaceless), szMessage);
-    
-    new iOutIndex = 0;
-    for (new i = 0; szSpaceless[i] != '^0'; i++) {
-        if (szSpaceless[i] != ' ') {
-            szSpaceless[iOutIndex++] = szSpaceless[i];
-        }
-    }
-    szSpaceless[iOutIndex] = '^0';
-    CleanWord(szSpaceless);
-    
-    // --- Whitelist (Beyaz Liste) Filtresi ---
-    new szWhitelistWord[32];
-    for (new i = 0; i < ArraySize(g_aWhitelist); i++) {
-        ArrayGetString(g_aWhitelist, i, szWhitelistWord, charsmax(szWhitelistWord));
-        if (szWhitelistWord[0] != '^0') {
-            replace_all(szSpaceless, charsmax(szSpaceless), szWhitelistWord, "");
-        }
-    }
-    
-    new szCurrentBadWord[32];
-    for (new i = 0; i < ArraySize(g_aBadWords); i++) {
-        ArrayGetString(g_aBadWords, i, szCurrentBadWord, charsmax(szCurrentBadWord));
-        if (strlen(szCurrentBadWord) >= 4 && containi(szSpaceless, szCurrentBadWord) != -1) {
-            bFound = true;
-            break;
-        }
-    }
-    
     new szWord[192], szClean[192];
-    new szSingleBuffer[64], szOriginalBuffer[128];
+    new szSpaceless[192];
+    new szSingleBuffer[64];
     new iPos = 0;
-    new bool:bFirst = true;
     
-    if (bFound) {
-        copy(szNewMessage, charsmax(szNewMessage), "*****");
-    } else {
-        while ((iPos = argparse(szMessage, iPos, szWord, charsmax(szWord))) != -1) {
+    szSpaceless[0] = '^0';
+    
+    while ((iPos = argparse(szMessage, iPos, szWord, charsmax(szWord))) != -1) {
         copy(szClean, charsmax(szClean), szWord);
         CleanWord(szClean);
         
-        if (szClean[0] == '^0') {
-            if (!bFirst) add(szNewMessage, charsmax(szNewMessage), " ");
-            add(szNewMessage, charsmax(szNewMessage), szWord);
-            bFirst = false;
-            continue;
-        }
+        if (szClean[0] == '^0') continue;
         
-        new iLen = strlen(szClean);
-        if (iLen == 1) {
-            // Tekil harf yakaladik, buffer'a ekle
-            add(szSingleBuffer, charsmax(szSingleBuffer), szClean);
-            if (szOriginalBuffer[0] != '^0') add(szOriginalBuffer, charsmax(szOriginalBuffer), " ");
-            add(szOriginalBuffer, charsmax(szOriginalBuffer), szWord);
-            continue;
-        } else {
-            // Uzun bir kelime geldi. Once buffer'da biriken harfler var mi bakalim!
-            if (szSingleBuffer[0] != '^0') {
-                if (TrieKeyExists(g_tBadWords, szSingleBuffer)) {
-                    bFound = true;
-                    if (!bFirst) add(szNewMessage, charsmax(szNewMessage), " ");
-                    add(szNewMessage, charsmax(szNewMessage), "*****");
-                    bFirst = false;
-                } else {
-                    // Kufur degilmis, orijinal halini (bosluklu) mesaja ekle
-                    if (!bFirst) add(szNewMessage, charsmax(szNewMessage), " ");
-                    add(szNewMessage, charsmax(szNewMessage), szOriginalBuffer);
-                    bFirst = false;
-                }
-                szSingleBuffer[0] = '^0';
-                szOriginalBuffer[0] = '^0';
+        // --- Exact Whitelist (Beyaz Liste) ---
+        new bool:bIsWhitelisted = false;
+        for (new i = 0; i < ArraySize(g_aWhitelist); i++) {
+            new szWhite[32];
+            ArrayGetString(g_aWhitelist, i, szWhite, charsmax(szWhite));
+            if (equal(szClean, szWhite)) {
+                bIsWhitelisted = true;
+                break;
             }
         }
         
-        // Normal kelime kontrolu
-        new bool:bWordMatched = false;
-        if (TrieKeyExists(g_tBadWords, szClean)) {
-            bWordMatched = true;
+        if (bIsWhitelisted) {
+            szSingleBuffer[0] = '^0';
+            continue; // Beyaz listedeki kelime spaceless'a da eklenmez!
+        }
+        
+        // Beyaz listede olmayan temizlenmis kelimeyi spaceless icin birlestir
+        add(szSpaceless, charsmax(szSpaceless), szClean);
+        
+        new iLen = strlen(szClean);
+        if (iLen == 1) {
+            add(szSingleBuffer, charsmax(szSingleBuffer), szClean);
+            continue;
         } else {
-            new szCurrentBadWord[32];
+            if (szSingleBuffer[0] != '^0') {
+                new bool:bBuffWhitelisted = false;
+                for (new i = 0; i < ArraySize(g_aWhitelist); i++) {
+                    new szWhite[32];
+                    ArrayGetString(g_aWhitelist, i, szWhite, charsmax(szWhite));
+                    if (equal(szSingleBuffer, szWhite)) {
+                        bBuffWhitelisted = true;
+                        break;
+                    }
+                }
+                if (!bBuffWhitelisted && TrieKeyExists(g_tBadWords, szSingleBuffer)) {
+                    bFound = true;
+                    break;
+                }
+                szSingleBuffer[0] = '^0';
+            }
+        }
+        
+        if (TrieKeyExists(g_tBadWords, szClean)) {
+            bFound = true;
+            break;
+        } else {
             for (new i = 0; i < ArraySize(g_aBadWords); i++) {
+                new szCurrentBadWord[32];
                 ArrayGetString(g_aBadWords, i, szCurrentBadWord, charsmax(szCurrentBadWord));
-                new iLen = strlen(szCurrentBadWord);
-                if (iLen > 1 && szCurrentBadWord[iLen - 1] == '*') {
-                    szCurrentBadWord[iLen - 1] = '^0';
-                    if (equal(szClean, szCurrentBadWord, iLen - 1)) {
-                        bWordMatched = true;
+                new badLen = strlen(szCurrentBadWord);
+                if (badLen > 1 && szCurrentBadWord[badLen - 1] == '*') {
+                    szCurrentBadWord[badLen - 1] = '^0';
+                    if (equal(szClean, szCurrentBadWord, badLen - 1)) {
+                        bFound = true;
                         break;
                     }
                 }
             }
+            if (bFound) break;
         }
-        
-        if (bWordMatched) {
-            bFound = true;
-            if (!bFirst) add(szNewMessage, charsmax(szNewMessage), " ");
-            add(szNewMessage, charsmax(szNewMessage), "*****");
-        } else {
-            if (!bFirst) add(szNewMessage, charsmax(szNewMessage), " ");
-            add(szNewMessage, charsmax(szNewMessage), szWord);
-        }
-        bFirst = false;
     }
     
-        // Dongu bitti ama sonda harf kaldi mi? (Orn: mesajin sonu "E Z" ile bitiyorsa)
-        if (szSingleBuffer[0] != '^0') {
-            if (TrieKeyExists(g_tBadWords, szSingleBuffer)) {
-                bFound = true;
-                if (!bFirst) add(szNewMessage, charsmax(szNewMessage), " ");
-                add(szNewMessage, charsmax(szNewMessage), "*****");
+    if (!bFound && szSingleBuffer[0] != '^0') {
+        new bool:bBuffWhitelisted = false;
+        for (new i = 0; i < ArraySize(g_aWhitelist); i++) {
+            new szWhite[32];
+            ArrayGetString(g_aWhitelist, i, szWhite, charsmax(szWhite));
+            if (equal(szSingleBuffer, szWhite)) {
+                bBuffWhitelisted = true;
+                break;
+            }
+        }
+        if (!bBuffWhitelisted && TrieKeyExists(g_tBadWords, szSingleBuffer)) {
+            bFound = true;
+        }
+    }
+    
+    // Kelime kelime aramada bulunamadiysa, beyaz liste HARIC tutularak birlestirilmis metni (Spaceless) tara
+    if (!bFound && szSpaceless[0] != '^0') {
+        CleanWord(szSpaceless); // Birlestirme sonrasi olusan "amccik" (cift harf) gibi durumlari temizle
+        
+        new szCurrentBadWord[32];
+        for (new i = 0; i < ArraySize(g_aBadWords); i++) {
+            ArrayGetString(g_aBadWords, i, szCurrentBadWord, charsmax(szCurrentBadWord));
+            new iLen = strlen(szCurrentBadWord);
+            if (iLen > 1 && szCurrentBadWord[iLen - 1] == '*') {
+                szCurrentBadWord[iLen - 1] = '^0';
+                if (iLen - 1 >= 3 && containi(szSpaceless, szCurrentBadWord) != -1) {
+                    bFound = true;
+                    break;
+                }
             } else {
-                if (!bFirst) add(szNewMessage, charsmax(szNewMessage), " ");
-                add(szNewMessage, charsmax(szNewMessage), szOriginalBuffer);
+                if (iLen >= 3 && containi(szSpaceless, szCurrentBadWord) != -1) {
+                    bFound = true;
+                    break;
+                }
             }
         }
     }
@@ -528,7 +522,19 @@ public cmd_AddWord(id, level, cid) {
     strtolower(szWord);
     new szClean[32];
     copy(szClean, charsmax(szClean), szWord);
+    
+    new bool:bHasWildcard = false;
+    new iLen = strlen(szClean);
+    if (iLen > 1 && szClean[iLen - 1] == '*') {
+        bHasWildcard = true;
+        szClean[iLen - 1] = '^0';
+    }
+    
     CleanWord(szClean);
+    
+    if (bHasWildcard) {
+        add(szClean, charsmax(szClean), "*");
+    }
     
     if (szClean[0] == '^0') {
         console_print(id, "[AutoGag] Gecersiz kelime!");
@@ -575,7 +581,19 @@ public cmd_DelWord(id, level, cid) {
     strtolower(szWord);
     new szClean[32];
     copy(szClean, charsmax(szClean), szWord);
+    
+    new bool:bHasWildcard = false;
+    new iLen = strlen(szClean);
+    if (iLen > 1 && szClean[iLen - 1] == '*') {
+        bHasWildcard = true;
+        szClean[iLen - 1] = '^0';
+    }
+    
     CleanWord(szClean);
+    
+    if (bHasWildcard) {
+        add(szClean, charsmax(szClean), "*");
+    }
     
     if (!TrieKeyExists(g_tBadWords, szClean)) {
         console_print(id, "[AutoGag] Bu kelime listede yok!");
@@ -614,7 +632,19 @@ public cmd_DelWord(id, level, cid) {
             
             new szCleanLine[64];
             copy(szCleanLine, charsmax(szCleanLine), szLine);
+            
+            new bool:bLineHasWildcard = false;
+            new iLineLen = strlen(szCleanLine);
+            if (iLineLen > 1 && szCleanLine[iLineLen - 1] == '*') {
+                bLineHasWildcard = true;
+                szCleanLine[iLineLen - 1] = '^0';
+            }
+            
             CleanWord(szCleanLine);
+            
+            if (bLineHasWildcard) {
+                add(szCleanLine, charsmax(szCleanLine), "*");
+            }
             
             if (!equal(szCleanLine, szClean)) {
                 ArrayPushString(aLines, szLine);

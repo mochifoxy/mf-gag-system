@@ -40,8 +40,18 @@ public cmd_gag(id, level, cid) {
     new target = cmd_target(id, szArg1, CMDTARGET_OBEY_IMMUNITY | CMDTARGET_ALLOW_SELF);
     if (!target) return PLUGIN_HANDLED;
     
-    if (!isdigit(szArg2[0]) && szArg2[0] != '^0') {
-         console_print(id, "[GAG] Gecersiz sure! Sadece sayi kullanin.");
+    new i = 0;
+    new bool:bIsNumeric = true;
+    while (szArg2[i] != '^0') {
+        if (!isdigit(szArg2[i])) {
+            bIsNumeric = false;
+            break;
+        }
+        i++;
+    }
+    
+    if (!bIsNumeric || i > 6) {
+         console_print(id, "[GAG] Gecersiz sure! Sadece sayi kullanin (Max 999999).");
          return PLUGIN_HANDLED;
     }
     
@@ -83,7 +93,17 @@ public cmd_say(id) {
     remove_quotes(szText);
     
     new szCmd[16], szTarget[32], szTime[32], szReason[64];
-    parse(szText, szCmd, charsmax(szCmd), szTarget, charsmax(szTarget), szTime, charsmax(szTime), szReason, charsmax(szReason));
+    new iPos = 0;
+    iPos = argparse(szText, iPos, szCmd, charsmax(szCmd));
+    if (iPos != -1) iPos = argparse(szText, iPos, szTarget, charsmax(szTarget));
+    if (iPos != -1) iPos = argparse(szText, iPos, szTime, charsmax(szTime));
+    
+    if (iPos != -1) {
+        copy(szReason, charsmax(szReason), szText[iPos]);
+        trim(szReason);
+    } else {
+        szReason[0] = '^0';
+    }
     
     if (equali(szCmd, "/gag") || equali(szCmd, "/mgag") || equali(szCmd, "/mg")) {
         if (!access(id, ADMIN_KICK)) return PLUGIN_CONTINUE;
@@ -101,8 +121,18 @@ public cmd_say(id) {
             return PLUGIN_HANDLED;
         }
         
-        if (!isdigit(szTime[0])) {
-             client_print_color(id, print_team_default, "%sGecersiz sure! Sadece sayi kullanin.", GAG_TAG);
+        new i = 0;
+        new bool:bIsNumeric = true;
+        while (szTime[i] != '^0') {
+            if (!isdigit(szTime[i])) {
+                bIsNumeric = false;
+                break;
+            }
+            i++;
+        }
+        
+        if (!bIsNumeric || i > 6) {
+             client_print_color(id, print_team_default, "%sGecersiz sure! Maksimum 999999 girebilirsiniz.", GAG_TAG);
              return PLUGIN_HANDLED;
         }
         

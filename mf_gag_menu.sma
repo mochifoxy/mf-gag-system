@@ -341,7 +341,11 @@ public Handler_ExtendMenu(id, menu, item) {
     if (iTime == 0) {
         mfgag_set_gag(id, target, 0, "Sure Uzatildi");
     } else {
-        mfgag_set_gag(id, target, iRemainingMins + iTime, "Sure Uzatildi");
+        if (iCurrentTime == 0) {
+            client_print_color(id, print_team_default, "%sBu oyuncu zaten sinirsiz gagli!", GAG_TAG);
+        } else {
+            mfgag_set_gag(id, target, iRemainingMins + iTime, "Sure Uzatildi");
+        }
     }
     
     menu_destroy(menu);
@@ -410,11 +414,15 @@ public Handler_ShortenMenu(id, menu, item) {
     new iCurrentTime = mfgag_get_time(target);
     new iRemainingMins = iCurrentTime / 60;
     
-    new iNewMins = iRemainingMins - iTime;
-    if (iNewMins <= 0) {
-        mfgag_remove_gag(id, target);
+    if (iCurrentTime == 0) {
+        client_print_color(id, print_team_default, "%sSinirsiz gagi kisaltamazsiniz. Yeni sure belirleyin.", GAG_TAG);
     } else {
-        mfgag_set_gag(id, target, iNewMins, "Sure Kisaltildi");
+        new iNewMins = iRemainingMins - iTime;
+        if (iNewMins <= 0) {
+            mfgag_remove_gag(id, target);
+        } else {
+            mfgag_set_gag(id, target, iNewMins, "Sure Kisaltildi");
+        }
     }
     
     menu_destroy(menu);
@@ -527,8 +535,8 @@ public cmd_CustomGagTime(id) {
         i++;
     }
     
-    if (!bIsNumeric || i == 0) {
-        client_print_color(id, print_team_default, "%sGecersiz sure girdiniz! Lutfen sadece sayi girin.", GAG_TAG);
+    if (!bIsNumeric || i == 0 || i > 6) {
+        client_print_color(id, print_team_default, "%sGecersiz sure girdiniz! Maksimum 999999 girebilirsiniz.", GAG_TAG);
         if (g_bFromUngag[id]) ShowUngagMenu(id);
         else ShowPlayerMenu(id);
         return PLUGIN_HANDLED;

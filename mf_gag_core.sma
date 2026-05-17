@@ -44,6 +44,9 @@ public plugin_init() {
         set_fail_state("nVault acilamadi! Eklenti durduruldu.");
     }
     
+    // 30 gunluk (86400 * 30 saniye) eski gag kayitlarini sil
+    nvault_prune(g_Vault, 0, get_systime() - 2592000);
+    
     g_aCmdWhitelist = ArrayCreate(32);
     LoadCmdWhitelist();
 }
@@ -65,7 +68,7 @@ public client_putinserver(id) {
     get_user_authid(id, g_szAuthID[id], charsmax(g_szAuthID[]));
     get_user_ip(id, g_szIP[id], charsmax(g_szIP[]), 1);
     
-    set_task(1.0, "check_gag", id + TASK_CHECK_GAG);
+    check_gag(id + TASK_CHECK_GAG);
 }
 
 public client_disconnected(id) {
@@ -114,25 +117,40 @@ public check_gag(task_id) {
             g_iGagEnd[id] = iEnd;
             copy(g_szGagReason[id], charsmax(g_szGagReason[]), szReason);
             
+            // Amnesia Bug Fix: Kaydi yenile ki nvault_prune aktif cezalari silmesin
+            nvault_touch(g_Vault, g_szAuthID[id]);
+            nvault_touch(g_Vault, g_szIP[id]);
+            
             if (iEnd > 0) {
                 new iRemaining = iEnd - iCurrentTime;
                 set_task(float(iRemaining), "task_GagExpired", id + TASK_GAG_EXPIRE);
             }
-            new szName[32];
-            get_user_name(id, szName, charsmax(szName));
-            if (iEnd == 0) {
-                client_print_color(0, print_team_default, "%s^3%s ^1adli oyuncu sunucuya ^4SINIRSIZ GAGLI ^1olarak baglandi. Sebep: ^3%s", GAG_TAG, szName, szReason);
-            } else {
-                new iRemainingMinutes = (iEnd - iCurrentTime) / 60;
-                if (iRemainingMinutes < 1) iRemainingMinutes = 1;
-                client_print_color(0, print_team_default, "%s^3%s ^1adli oyuncu sunucuya ^4%d DK GAGLI ^1olarak baglandi. Sebep: ^3%s", GAG_TAG, szName, iRemainingMinutes, szReason);
-            }
+            
+            // Oyuncu baglandigi an mesaj atilirsa HUD yuklenmedigi icin veya map degisiminde silinebilir. 2 saniye gecikmeli bas!
+            set_task(2.0, "task_PrintGagJoin", id + TASK_CHECK_GAG);
         } else {
             new szName[32];
             get_user_name(id, szName, charsmax(szName));
             remove_gag_from_db(g_szAuthID[id], g_szIP[id]);
             log_to_file("mf_gag.log", "Sistem | Hedef: %s (%s) | Gag Suresi Dolmus (Baglandi)", szName, g_szAuthID[id]);
         }
+    }
+}
+
+public task_PrintGagJoin(task_id) {
+    new id = task_id - TASK_CHECK_GAG;
+    if (!is_user_connected(id)) return;
+    
+    new szName[32];
+    get_user_name(id, szName, charsmax(szName));
+    
+    new iEnd = g_iGagEnd[id];
+    if (iEnd == 0) {
+        client_print_color(0, print_team_default, "%s^3%s ^1adli oyuncu sunucuya ^4SINIRSIZ GAGLI ^1olarak baglandi. Sebep: ^3%s", GAG_TAG, szName, g_szGagReason[id]);
+    } else {
+        new iRemainingMinutes = (iEnd - get_systime()) / 60;
+        if (iRemainingMinutes < 1) iRemainingMinutes = 1;
+        client_print_color(0, print_team_default, "%s^3%s ^1adli oyuncu sunucuya ^4%d DK GAGLI ^1olarak baglandi. Sebep: ^3%s", GAG_TAG, szName, iRemainingMinutes, g_szGagReason[id]);
     }
 }
 
@@ -166,6 +184,8 @@ LoadCmdWhitelist() {
     if (!file_exists(szFilePath)) {
         new f = fopen(szFilePath, "wt");
         if (f) {
+            fprintf(f, "; Gaglanan oyuncularin kullanabilecegi komutlar^n");
+            fprintf(f, "; Arguman alan komutlarin sonuna * koyun (Orn: /ungag *)^n");
             fprintf(f, "/rank^n/top15^n/me^n/stats^n.rank^n.top15^n.me^n");
             fclose(f);
         }
@@ -177,6 +197,8 @@ LoadCmdWhitelist() {
     new szLine[32];
     while (!feof(f)) {
         fgets(f, szLine, charsmax(szLine));
+        replace_all(szLine, charsmax(szLine), "^n", "");
+        replace_all(szLine, charsmax(szLine), "^r", "");
         trim(szLine);
         
         if (szLine[0] == '^0' || szLine[0] == ';' || (szLine[0] == '/' && szLine[1] == '/')) {
@@ -197,14 +219,26 @@ public cmd_say(id) {
         
         // Gagli olsa bile kullanabilecegi guvenli komutlar
         if (szText[0] == '/' || szText[0] == '.') {
-            new szCmd[32];
+            new szCmd[32], szFirstWord[32];
             new bool:bAllowed = false;
+            parse(szText, szFirstWord, charsmax(szFirstWord));
             
             for (new i = 0; i < ArraySize(g_aCmdWhitelist); i++) {
                 ArrayGetString(g_aCmdWhitelist, i, szCmd, charsmax(szCmd));
-                if (equal(szText, szCmd, strlen(szCmd))) {
-                    bAllowed = true;
-                    break;
+                
+                new iLen = strlen(szCmd);
+                if (iLen > 1 && szCmd[iLen - 1] == '*') {
+                    szCmd[iLen - 1] = '^0';
+                    trim(szCmd); // Gizli bosluk tuzagini temizle ("/ungag " -> "/ungag")
+                    if (equal(szFirstWord, szCmd)) {
+                        bAllowed = true;
+                        break;
+                    }
+                } else {
+                    if (equal(szText, szCmd)) {
+                        bAllowed = true;
+                        break;
+                    }
                 }
             }
             
@@ -229,14 +263,26 @@ public cmd_say_team(id) {
         remove_quotes(szText);
         
         if (szText[0] == '/' || szText[0] == '.') {
-            new szCmd[32];
+            new szCmd[32], szFirstWord[32];
             new bool:bAllowed = false;
+            parse(szText, szFirstWord, charsmax(szFirstWord));
             
             for (new i = 0; i < ArraySize(g_aCmdWhitelist); i++) {
                 ArrayGetString(g_aCmdWhitelist, i, szCmd, charsmax(szCmd));
-                if (equal(szText, szCmd, strlen(szCmd))) {
-                    bAllowed = true;
-                    break;
+                
+                new iLen = strlen(szCmd);
+                if (iLen > 1 && szCmd[iLen - 1] == '*') {
+                    szCmd[iLen - 1] = '^0';
+                    trim(szCmd); // Gizli bosluk tuzagini temizle
+                    if (equal(szFirstWord, szCmd)) {
+                        bAllowed = true;
+                        break;
+                    }
+                } else {
+                    if (equal(szText, szCmd)) {
+                        bAllowed = true;
+                        break;
+                    }
                 }
             }
             
@@ -281,7 +327,7 @@ public bool:native_set_gag(plugin_id, num_params) {
     
     if (!is_user_connected(target_id)) return false;
     
-    if (access(target_id, ADMIN_IMMUNITY) && admin_id != target_id && admin_id != 0 && !g_bIsGagged[target_id]) {
+    if (access(target_id, ADMIN_IMMUNITY) && admin_id != target_id && admin_id != 0) {
         client_print_color(admin_id, print_team_default, "%sDokunulmazligi olan bir oyuncuyu gaglayamazsiniz!", GAG_TAG);
         return false;
     }
