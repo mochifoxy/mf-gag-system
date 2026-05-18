@@ -1,7 +1,6 @@
 # 🔇 MF Gag & Auto Gag System
 
-Copyright (c) 2026 [MochiFoxy && FoxyBlinks]. All rights reserved. Bu projenin kaynak kodu hiçbir şekilde kopyalanamaz, dağıtılamaz veya izinsiz kullanılamaz.
-
+Copyright (c) 2026 [MochiFoxy && FoxyBlinks]. All rights reserved
 CS 1.6 (GoldSrc) motoru için geliştirilmiş, yüksek performanslı, güvenli, estetik ve **yapay zeka benzeri akıllı filtreleme** özelliklerine sahip gelişmiş bir Gag (Susturma) ve Otomatik Ceza sistemidir. AMX Mod X altyapısını kullanır.
 
 [![Game](https://img.shields.io/badge/Game-CS%201.6-orange.svg)](https://store.steampowered.com/app/10/CounterStrike/)

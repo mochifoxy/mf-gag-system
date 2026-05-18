@@ -33,6 +33,8 @@ new g_pCvarDefaultTime;
 // Vault Handle
 new g_Vault;
 
+bool:CleanWord(szWord[]);
+
 public plugin_init() {
     register_plugin(PLUGIN, VERSION, AUTHOR);
     
@@ -59,6 +61,9 @@ public plugin_init() {
     LoadWhitelist();
     
     g_Vault = nvault_open("autogag_offenses");
+    if (g_Vault == INVALID_HANDLE) {
+        set_fail_state("nVault (autogag_offenses) acilamadi! AutoGag durduruldu.");
+    }
     
     // 24 saatten eski kayitlari sil (Dosya sismesini onlemek icin)
     nvault_prune(g_Vault, 0, get_systime() - 86400);
@@ -67,25 +72,28 @@ public plugin_init() {
 public plugin_end() {
     TrieDestroy(g_tBadWords);
     ArrayDestroy(g_aBadWords);
+    ArrayDestroy(g_aWhitelist);
     
     // Map kapanmadan once iceride kalan herkesin kaydini diske yaz
-    new szAuthID[32], szIP[32], szData[48];
+    new szAuthID[35], szIP[32], szData[48];
     for (new id = 1; id <= 32; id++) {
         if (is_user_connected(id) && !is_user_bot(id) && !is_user_hltv(id)) {
             if (g_iOffenses[id] > 0 || g_iWarnings[id] > 0) {
                 get_user_authid(id, szAuthID, charsmax(szAuthID));
                 get_user_ip(id, szIP, charsmax(szIP), 1);
                 
-                formatex(szData, charsmax(szData), "%d %d %d %d", g_iOffenses[id], g_iWarnings[id], g_iWarnDecayTimer[id], g_iOffenseDecayTimer[id]);
-                if (g_Vault) {
-                    nvault_set(g_Vault, szAuthID, szData);
-                    nvault_set(g_Vault, szIP, szData);
+                if (szAuthID[0] != '^0' && !equal(szAuthID, "STEAM_ID_PENDING") && szIP[0] != '^0') {
+                    formatex(szData, charsmax(szData), "%d %d %d %d", g_iOffenses[id], g_iWarnings[id], g_iWarnDecayTimer[id], g_iOffenseDecayTimer[id]);
+                    if (g_Vault) {
+                        nvault_set(g_Vault, szAuthID, szData);
+                        nvault_set(g_Vault, szIP, szData);
+                    }
                 }
             }
         }
     }
     
-    if (g_Vault) {
+    if (g_Vault != INVALID_HANDLE) {
         nvault_close(g_Vault);
     }
 }
@@ -95,18 +103,22 @@ public client_disconnected(id) {
     
     // Sadece uyarisi veya ihlali olanlari kaydet (Diski bosuna yormamak icin)
     if (g_iOffenses[id] > 0 || g_iWarnings[id] > 0) {
-        new szAuthID[32], szIP[32], szData[48];
+        new szAuthID[35], szIP[32], szData[48];
         get_user_authid(id, szAuthID, charsmax(szAuthID));
         get_user_ip(id, szIP, charsmax(szIP), 1);
         
-        formatex(szData, charsmax(szData), "%d %d %d %d", g_iOffenses[id], g_iWarnings[id], g_iWarnDecayTimer[id], g_iOffenseDecayTimer[id]);
-        nvault_set(g_Vault, szAuthID, szData);
-        nvault_set(g_Vault, szIP, szData);
+        if (szAuthID[0] != '^0' && !equal(szAuthID, "STEAM_ID_PENDING") && szIP[0] != '^0') {
+            formatex(szData, charsmax(szData), "%d %d %d %d", g_iOffenses[id], g_iWarnings[id], g_iWarnDecayTimer[id], g_iOffenseDecayTimer[id]);
+            nvault_set(g_Vault, szAuthID, szData);
+            nvault_set(g_Vault, szIP, szData);
+        }
     }
     
     // Hafizayi temizle
     g_iOffenses[id] = 0;
     g_iWarnings[id] = 0;
+    g_iMessageCount[id] = 0;
+    g_flLastTalkTime[id] = 0.0;
     remove_task(id + 5000);
 }
 
@@ -125,8 +137,15 @@ public load_offenses(taskid) {
     new id = taskid - 5000; // Offseti geri al
     if (!is_user_connected(id)) return;
     
-    new szAuthID[32], szIP[32];
+    new szAuthID[35], szIP[32];
     get_user_authid(id, szAuthID, charsmax(szAuthID));
+    
+    if (equal(szAuthID, "STEAM_ID_PENDING") || szAuthID[0] == '^0') {
+        remove_task(taskid);
+        set_task(0.5, "load_offenses", taskid);
+        return;
+    }
+    
     get_user_ip(id, szIP, charsmax(szIP), 1);
     
     new iCountID = 0, iWarningsID = 0, iWarnTimeID = 0, iOffTimeID = 0;
@@ -196,7 +215,7 @@ public load_offenses(taskid) {
 LoadWhitelist() {
     new szFilePath[128];
     get_configsdir(szFilePath, charsmax(szFilePath));
-    format(szFilePath, charsmax(szFilePath), "%s/whitelist.txt", szFilePath);
+    add(szFilePath, charsmax(szFilePath), "/whitelist.txt");
     
     if (!file_exists(szFilePath)) {
         new f = fopen(szFilePath, "wt");
@@ -234,7 +253,7 @@ LoadWhitelist() {
 LoadWords() {
     new szFilePath[128];
     get_configsdir(szFilePath, charsmax(szFilePath));
-    format(szFilePath, charsmax(szFilePath), "%s/kufurler.txt", szFilePath);
+    add(szFilePath, charsmax(szFilePath), "/kufurler.txt");
     
     if (!file_exists(szFilePath)) {
         formatex(szFilePath, charsmax(szFilePath), "kufurler.txt");
@@ -262,17 +281,17 @@ LoadWords() {
         if (iLen > 1 && szLine[iLen - 1] == '*') {
             bIsWildcard = true;
             szLine[iLen - 1] = '^0';
-            trim(szLine); // Yildiz silindikten sonra bosluk kaldiysa temizle
+            trim(szLine); 
         }
         
         CleanWord(szLine);
-        
         if (szLine[0] != '^0') {
             if (bIsWildcard) {
                 add(szLine, charsmax(szLine), "*");
+                ArrayPushString(g_aBadWords, szLine); // Wildcard kelimeler doğrusal diziye
+            } else {
+                TrieSetCell(g_tBadWords, szLine, 1); // Tam eşleşmeler doğrudan O(1) Trie'ye
             }
-            TrieSetCell(g_tBadWords, szLine, 1);
-            ArrayPushString(g_aBadWords, szLine);
         }
     }
     
@@ -327,22 +346,30 @@ public cmd_Say(id) {
     
     // --- Flood Korumasi ---
     new Float:flCurrentTime = get_gametime();
-    if (flCurrentTime - g_flLastTalkTime[id] < get_pcvar_float(g_pCvarFloodTime)) {
+    new Float:flDiff = flCurrentTime - g_flLastTalkTime[id];
+    g_flLastTalkTime[id] = flCurrentTime;
+    
+    if (flDiff < get_pcvar_float(g_pCvarFloodTime)) {
         g_iMessageCount[id]++;
         if (g_iMessageCount[id] >= get_pcvar_num(g_pCvarFloodLimit)) {
             g_iWarnings[id]++;
             g_iWarnDecayTimer[id] = get_systime();
-            g_iOffenseDecayTimer[id] = get_systime();
             
             client_print_color(id, print_team_default, "%sFlood yaptiginiz icin uyari aldiniz! (%d/%d)", AUTOGAG_TAG, g_iWarnings[id], get_pcvar_num(g_pCvarWarnLimit));
             
+            // Tek bir bind basımında (aynı anda gelen paketlerde) arka arkaya uyarı alıp anında ceza yememesi için sayaç sıfırlanıyor
+            g_iMessageCount[id] = 0;
+            
             if (g_iWarnings[id] >= get_pcvar_num(g_pCvarWarnLimit)) {
                 g_iOffenses[id]++;
+                g_iOffenseDecayTimer[id] = get_systime();
                 
                 new iDefaultTime = get_pcvar_num(g_pCvarDefaultTime);
                 new iGagTime = iDefaultTime;
                 
-                iGagTime = iDefaultTime * (1 << (g_iOffenses[id] - 1));
+                new iShift = min(g_iOffenses[id] - 1, 14);
+                iGagTime = iDefaultTime * (1 << iShift);
+                if (iGagTime > 43200) iGagTime = 43200; // Max 30 days
                 client_print_color(id, print_team_default, "%sFlood yaptiginiz icin ^3%d dakika ^1gaglandiniz.", AUTOGAG_TAG, iGagTime);
                 
                 new szReason[64];
@@ -354,27 +381,59 @@ public cmd_Say(id) {
                 log_amx("[AutoGag] %s flood nedeniyle otomatik gaglandi. Sure: %d Dk, Ihlal: %d", szName, iGagTime, g_iOffenses[id]);
             }
             
-            g_flLastTalkTime[id] = flCurrentTime;
             return PLUGIN_HANDLED;
         }
     } else {
         g_iMessageCount[id] = 1;
     }
-    g_flLastTalkTime[id] = flCurrentTime;
     // ----------------------
     
     new bool:bFound = false;
     new szWord[192], szClean[192];
-    new szSpaceless[192];
-    new szSingleBuffer[64];
     new iPos = 0;
     
-    szSpaceless[0] = '^0';
+    new szGlobalSpaceless[192];
+    copy(szGlobalSpaceless, charsmax(szGlobalSpaceless), szMessage);
+    CleanWord(szGlobalSpaceless);
     
-    while ((iPos = argparse(szMessage, iPos, szWord, charsmax(szWord))) != -1) {
+    if (szGlobalSpaceless[0] != '^0') {
+        if (TrieKeyExists(g_tBadWords, szGlobalSpaceless)) {
+            bFound = true;
+        } else {
+            new szCurrentBadWord[32];
+            for (new i = 0; i < ArraySize(g_aBadWords); i++) {
+                ArrayGetString(g_aBadWords, i, szCurrentBadWord, charsmax(szCurrentBadWord));
+                new iLen = strlen(szCurrentBadWord);
+                if (iLen > 1 && szCurrentBadWord[iLen - 1] == '*') {
+                    szCurrentBadWord[iLen - 1] = '^0';
+                    if (iLen - 1 >= 3 && containi(szGlobalSpaceless, szCurrentBadWord) != -1) {
+                        bFound = true;
+                        break;
+                    }
+                } else {
+                    if (iLen >= 4 && containi(szGlobalSpaceless, szCurrentBadWord) != -1) {
+                        bFound = true;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    
+    new szPunctspacedMessage[192];
+    copy(szPunctspacedMessage, charsmax(szPunctspacedMessage), szMessage);
+    for (new i = 0; szPunctspacedMessage[i] != '^0'; i++) {
+        new c = szPunctspacedMessage[i];
+        if (c > 32 && c < 128) {
+            if (!(('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || ('0' <= c && c <= '9'))) {
+                szPunctspacedMessage[i] = ' ';
+            }
+        }
+    }
+    
+    while ((iPos = argparse(szPunctspacedMessage, iPos, szWord, charsmax(szWord))) != -1) {
         copy(szClean, charsmax(szClean), szWord);
         CleanWord(szClean);
-        
         if (szClean[0] == '^0') continue;
         
         // --- Exact Whitelist (Beyaz Liste) ---
@@ -389,34 +448,7 @@ public cmd_Say(id) {
         }
         
         if (bIsWhitelisted) {
-            szSingleBuffer[0] = '^0';
-            continue; // Beyaz listedeki kelime spaceless'a da eklenmez!
-        }
-        
-        // Beyaz listede olmayan temizlenmis kelimeyi spaceless icin birlestir
-        add(szSpaceless, charsmax(szSpaceless), szClean);
-        
-        new iLen = strlen(szClean);
-        if (iLen == 1) {
-            add(szSingleBuffer, charsmax(szSingleBuffer), szClean);
-            continue;
-        } else {
-            if (szSingleBuffer[0] != '^0') {
-                new bool:bBuffWhitelisted = false;
-                for (new i = 0; i < ArraySize(g_aWhitelist); i++) {
-                    new szWhite[32];
-                    ArrayGetString(g_aWhitelist, i, szWhite, charsmax(szWhite));
-                    if (equal(szSingleBuffer, szWhite)) {
-                        bBuffWhitelisted = true;
-                        break;
-                    }
-                }
-                if (!bBuffWhitelisted && TrieKeyExists(g_tBadWords, szSingleBuffer)) {
-                    bFound = true;
-                    break;
-                }
-                szSingleBuffer[0] = '^0';
-            }
+            continue; // Beyaz listedeki kelime
         }
         
         if (TrieKeyExists(g_tBadWords, szClean)) {
@@ -439,56 +471,20 @@ public cmd_Say(id) {
         }
     }
     
-    if (!bFound && szSingleBuffer[0] != '^0') {
-        new bool:bBuffWhitelisted = false;
-        for (new i = 0; i < ArraySize(g_aWhitelist); i++) {
-            new szWhite[32];
-            ArrayGetString(g_aWhitelist, i, szWhite, charsmax(szWhite));
-            if (equal(szSingleBuffer, szWhite)) {
-                bBuffWhitelisted = true;
-                break;
-            }
-        }
-        if (!bBuffWhitelisted && TrieKeyExists(g_tBadWords, szSingleBuffer)) {
-            bFound = true;
-        }
-    }
-    
-    // Kelime kelime aramada bulunamadiysa, beyaz liste HARIC tutularak birlestirilmis metni (Spaceless) tara
-    if (!bFound && szSpaceless[0] != '^0') {
-        CleanWord(szSpaceless); // Birlestirme sonrasi olusan "amccik" (cift harf) gibi durumlari temizle
-        
-        new szCurrentBadWord[32];
-        for (new i = 0; i < ArraySize(g_aBadWords); i++) {
-            ArrayGetString(g_aBadWords, i, szCurrentBadWord, charsmax(szCurrentBadWord));
-            new iLen = strlen(szCurrentBadWord);
-            if (iLen > 1 && szCurrentBadWord[iLen - 1] == '*') {
-                szCurrentBadWord[iLen - 1] = '^0';
-                if (iLen - 1 >= 3 && containi(szSpaceless, szCurrentBadWord) != -1) {
-                    bFound = true;
-                    break;
-                }
-            } else {
-                if (iLen >= 3 && containi(szSpaceless, szCurrentBadWord) != -1) {
-                    bFound = true;
-                    break;
-                }
-            }
-        }
-    }
-    
     if (bFound) {
         g_iWarnings[id]++;
         g_iWarnDecayTimer[id] = get_systime();
-        g_iOffenseDecayTimer[id] = get_systime();
         
         if (g_iWarnings[id] >= get_pcvar_num(g_pCvarWarnLimit)) {
             g_iOffenses[id]++;
+            g_iOffenseDecayTimer[id] = get_systime();
             
             new iDefaultTime = get_pcvar_num(g_pCvarDefaultTime);
             new iGagTime = iDefaultTime;
             
-            iGagTime = iDefaultTime * (1 << (g_iOffenses[id] - 1));
+            new iShift = min(g_iOffenses[id] - 1, 14);
+            iGagTime = iDefaultTime * (1 << iShift);
+            if (iGagTime > 43200) iGagTime = 43200; // Max 30 days
             client_print_color(id, print_team_default, "%sYasakli kelime sinirini astiginiz icin ^3%d dakika ^1gaglandiniz.", AUTOGAG_TAG, iGagTime);
             
             new szReason[64];
@@ -532,22 +528,33 @@ public cmd_AddWord(id, level, cid) {
     
     CleanWord(szClean);
     
-    if (bHasWildcard) {
-        add(szClean, charsmax(szClean), "*");
-    }
-    
     if (szClean[0] == '^0') {
         console_print(id, "[AutoGag] Gecersiz kelime!");
         return PLUGIN_HANDLED;
     }
     
-    if (TrieKeyExists(g_tBadWords, szClean)) {
-        console_print(id, "[AutoGag] Bu kelime zaten listede var!");
-        return PLUGIN_HANDLED;
+    if (bHasWildcard) {
+        add(szClean, charsmax(szClean), "*");
+        
+        // Array'de zaten var mı kontrolü
+        new szTemp[32], bool:bExists = false;
+        for(new i = 0; i < ArraySize(g_aBadWords); i++) {
+            ArrayGetString(g_aBadWords, i, szTemp, charsmax(szTemp));
+            if(equal(szTemp, szClean)) { bExists = true; break; }
+        }
+        
+        if (bExists) {
+            console_print(id, "[AutoGag] Bu wildcard kelime zaten listede var!");
+            return PLUGIN_HANDLED;
+        }
+        ArrayPushString(g_aBadWords, szClean);
+    } else {
+        if (TrieKeyExists(g_tBadWords, szClean)) {
+            console_print(id, "[AutoGag] Bu kelime zaten listede var!");
+            return PLUGIN_HANDLED;
+        }
+        TrieSetCell(g_tBadWords, szClean, 1);
     }
-    
-    TrieSetCell(g_tBadWords, szClean, 1);
-    ArrayPushString(g_aBadWords, szClean);
     
     new szFilePath[128];
     get_configsdir(szFilePath, charsmax(szFilePath));
@@ -559,7 +566,7 @@ public cmd_AddWord(id, level, cid) {
     
     new f = fopen(szFilePath, "at");
     if (f) {
-        fprintf(f, "%s^n", szClean); // Temizlenmis hali yaz, dosyayi duzenli tut
+        fprintf(f, "%s^n", szClean);
         fclose(f);
         console_print(id, "[AutoGag] '%s' kelimesi basariyla eklendi.", szClean);
     } else {
@@ -595,21 +602,36 @@ public cmd_DelWord(id, level, cid) {
         add(szClean, charsmax(szClean), "*");
     }
     
-    if (!TrieKeyExists(g_tBadWords, szClean)) {
+    new bool:bExists = false;
+    if (bHasWildcard) {
+        new szTemp[32];
+        for (new i = 0; i < ArraySize(g_aBadWords); i++) {
+            ArrayGetString(g_aBadWords, i, szTemp, charsmax(szTemp));
+            if (equal(szTemp, szClean)) {
+                bExists = true;
+                break;
+            }
+        }
+    } else {
+        bExists = TrieKeyExists(g_tBadWords, szClean);
+    }
+    
+    if (!bExists) {
         console_print(id, "[AutoGag] Bu kelime listede yok!");
         return PLUGIN_HANDLED;
     }
     
-    TrieDeleteKey(g_tBadWords, szClean);
-    
-    // Global diziden de sil
-    for (new i = 0; i < ArraySize(g_aBadWords); i++) {
+    if (bHasWildcard) {
         new szTemp[32];
-        ArrayGetString(g_aBadWords, i, szTemp, charsmax(szTemp));
-        if (equal(szTemp, szClean)) {
-            ArrayDeleteItem(g_aBadWords, i);
-            break;
+        for (new i = 0; i < ArraySize(g_aBadWords); i++) {
+            ArrayGetString(g_aBadWords, i, szTemp, charsmax(szTemp));
+            if (equal(szTemp, szClean)) {
+                ArrayDeleteItem(g_aBadWords, i);
+                break;
+            }
         }
+    } else {
+        TrieDeleteKey(g_tBadWords, szClean);
     }
     
     new szFilePath[128];
@@ -692,7 +714,7 @@ public cmd_ClearOffenses(id, level, cid) {
     get_user_name(id, szAdminName, charsmax(szAdminName));
     
     // nVault'a kaydet
-    new szAuthID[32], szIP[32], szData[48];
+    new szAuthID[35], szIP[32], szData[48];
     get_user_authid(target, szAuthID, charsmax(szAuthID));
     get_user_ip(target, szIP, charsmax(szIP), 1);
     formatex(szData, charsmax(szData), "0 0 %d %d", g_iWarnDecayTimer[target], g_iOffenseDecayTimer[target]);
@@ -705,7 +727,7 @@ public cmd_ClearOffenses(id, level, cid) {
     return PLUGIN_HANDLED;
 }
 
-CleanWord(szWord[]) {
+bool:CleanWord(szWord[]) {
     new iOutIndex = 0;
     new iInIndex = 0;
     new c;
@@ -716,28 +738,35 @@ CleanWord(szWord[]) {
         
         // 1. ADIM: UTF-8 (2 Byte'lık Türkçe Karakter) Tespiti
         if (c == 0xC3) {
+            if (szWord[iInIndex] == 0) break;
             c = szWord[iInIndex++];
             switch(c) {
                 case 0xA7, 0x87: c = 'c'; // ç, Ç
                 case 0xB6, 0x96: c = 'o'; // ö, Ö
                 case 0xBC, 0x9C: c = 'u'; // ü, Ü
-                default: { iInIndex--; c = 0xC3; } // Eşleşmediyse geri al
+                default: { continue; } // Eşleşmediyse pas geç!
             }
         }
         else if (c == 0xC4) {
+            if (szWord[iInIndex] == 0) break;
             c = szWord[iInIndex++];
             switch(c) {
                 case 0xB1, 0xB0: c = 'i'; // ı, İ
                 case 0x9F, 0x9E: c = 'g'; // ğ, Ğ
-                default: { iInIndex--; c = 0xC4; }
+                default: { continue; }
             }
         }
         else if (c == 0xC5) {
+            if (szWord[iInIndex] == 0) break;
             c = szWord[iInIndex++];
             switch(c) {
                 case 0x9F, 0x9E: c = 's'; // ş, Ş
-                default: { iInIndex--; c = 0xC5; }
+                default: { continue; }
             }
+        }
+        else if (c >= 0xD0) {
+            // Şüpheli yabancı Unicode karakteri temizle/atla, oyuncuyu cezalandırma!
+            continue; 
         }
         else {
             // 2. ADIM: ANSI Türkçe Karakterler ve Leetspeak Switch
@@ -770,6 +799,7 @@ CleanWord(szWord[]) {
         }
     }
     szWord[iOutIndex] = '^0'; // Stringi bitir
+    return true;
 }
 
 

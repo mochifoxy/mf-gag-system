@@ -23,7 +23,7 @@ native bool:mfgag_is_gagged(id);
  * @param reason    Gag sebebi
  * @return          true başarıyla atıldıysa, false atılamadıysa
  */
-native bool:mfgag_set_gag(admin_id, target_id, minutes, const reason[]);
+native bool:mfgag_set_gag(admin_id, target_id, minutes, const reason[], bool:bIsAbsolute = false);
 
 /**
  * Oyuncunun gagını kaldırır.
@@ -41,3 +41,21 @@ native bool:mfgag_remove_gag(admin_id, target_id);
  * @return          Saniye cinsinden kalan süre (0: Sınırsız, -1: Gaglı değil)
  */
 native mfgag_get_time(id);
+
+stock argparse(const input[], pos, output[], len) {
+    if (pos == -1) return -1;
+    new i = pos, outLen = 0;
+    while (input[i] == ' ' || input[i] == '^t') i++;
+    if (input[i] == '^0') return -1;
+    new bool:inQuotes = false;
+    if (input[i] == '"') { inQuotes = true; i++; }
+    while (input[i] != '^0') {
+        if (inQuotes && input[i] == '"') { i++; break; }
+        if (!inQuotes && (input[i] == ' ' || input[i] == '^t')) break;
+        if (outLen < len) output[outLen++] = input[i];
+        i++;
+    }
+    output[outLen] = '^0';
+    while (input[i] == ' ' || input[i] == '^t') i++;
+    return (input[i] == '^0') ? -1 : i;
+}

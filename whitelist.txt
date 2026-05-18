@@ -1,3 +1,5 @@
 // Buraya kufur filtresine takilmasini istemediginiz kelimeleri yazabilirsiniz
 // Her satira bir kelime
 nasilsin
+aksam
+cikicaz

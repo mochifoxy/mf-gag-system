@@ -12,6 +12,7 @@
 
 #define TASK_CHECK_GAG 1000
 #define TASK_GAG_EXPIRE 2000
+#define TASK_PRINT_GAG 3000
 
 new g_Vault;
 
@@ -62,11 +63,12 @@ public plugin_end() {
 public client_putinserver(id) {
     g_bIsGagged[id] = false;
     g_iGagEnd[id] = 0;
+    g_szGagReason[id][0] = '^0';
     if (is_user_bot(id) || is_user_hltv(id))
         return;
         
-    get_user_authid(id, g_szAuthID[id], charsmax(g_szAuthID[]));
-    get_user_ip(id, g_szIP[id], charsmax(g_szIP[]), 1);
+    get_user_authid(id, g_szAuthID[id], charsmax(g_szAuthID[id]));
+    get_user_ip(id, g_szIP[id], charsmax(g_szIP[id]), 1);
     
     check_gag(id + TASK_CHECK_GAG);
 }
@@ -79,17 +81,27 @@ public client_disconnected(id) {
     g_szGagReason[id][0] = '^0';
     remove_task(id + TASK_CHECK_GAG);
     remove_task(id + TASK_GAG_EXPIRE);
+    remove_task(id + TASK_PRINT_GAG);
 }
 
 public check_gag(task_id) {
     new id = task_id - TASK_CHECK_GAG;
     if (!is_user_connected(id)) return;
     
+    new szAuthID[35];
+    get_user_authid(id, szAuthID, charsmax(szAuthID));
+    
+    if (equal(szAuthID, "STEAM_ID_PENDING") || szAuthID[0] == '^0') {
+        remove_task(task_id);
+        set_task(0.5, "check_gag", task_id);
+        return;
+    }
+    
     new szData[128], iTimestamp;
     new bool:bFound = false;
     
-    get_user_authid(id, g_szAuthID[id], charsmax(g_szAuthID[]));
-    get_user_ip(id, g_szIP[id], charsmax(g_szIP[]), 1);
+    copy(g_szAuthID[id], charsmax(g_szAuthID[id]), szAuthID);
+    get_user_ip(id, g_szIP[id], charsmax(g_szIP[id]), 1);
     
     if (nvault_lookup(g_Vault, g_szAuthID[id], szData, charsmax(szData), iTimestamp)) {
         bFound = true;
@@ -115,7 +127,7 @@ public check_gag(task_id) {
         if (iEnd > iCurrentTime || iEnd == 0) {
             g_bIsGagged[id] = true;
             g_iGagEnd[id] = iEnd;
-            copy(g_szGagReason[id], charsmax(g_szGagReason[]), szReason);
+            copy(g_szGagReason[id], charsmax(g_szGagReason[id]), szReason);
             
             // Amnesia Bug Fix: Kaydi yenile ki nvault_prune aktif cezalari silmesin
             nvault_touch(g_Vault, g_szAuthID[id]);
@@ -123,11 +135,12 @@ public check_gag(task_id) {
             
             if (iEnd > 0) {
                 new iRemaining = iEnd - iCurrentTime;
+                remove_task(id + TASK_GAG_EXPIRE);
                 set_task(float(iRemaining), "task_GagExpired", id + TASK_GAG_EXPIRE);
             }
             
             // Oyuncu baglandigi an mesaj atilirsa HUD yuklenmedigi icin veya map degisiminde silinebilir. 2 saniye gecikmeli bas!
-            set_task(2.0, "task_PrintGagJoin", id + TASK_CHECK_GAG);
+            set_task(2.0, "task_PrintGagJoin", id + TASK_PRINT_GAG);
         } else {
             new szName[32];
             get_user_name(id, szName, charsmax(szName));
@@ -138,7 +151,7 @@ public check_gag(task_id) {
 }
 
 public task_PrintGagJoin(task_id) {
-    new id = task_id - TASK_CHECK_GAG;
+    new id = task_id - TASK_PRINT_GAG;
     if (!is_user_connected(id)) return;
     
     new szName[32];
@@ -148,7 +161,8 @@ public task_PrintGagJoin(task_id) {
     if (iEnd == 0) {
         client_print_color(0, print_team_default, "%s^3%s ^1adli oyuncu sunucuya ^4SINIRSIZ GAGLI ^1olarak baglandi. Sebep: ^3%s", GAG_TAG, szName, g_szGagReason[id]);
     } else {
-        new iRemainingMinutes = (iEnd - get_systime()) / 60;
+        new iRemainingSeconds = iEnd - get_systime();
+        new iRemainingMinutes = (iRemainingSeconds + 59) / 60;
         if (iRemainingMinutes < 1) iRemainingMinutes = 1;
         client_print_color(0, print_team_default, "%s^3%s ^1adli oyuncu sunucuya ^4%d DK GAGLI ^1olarak baglandi. Sebep: ^3%s", GAG_TAG, szName, iRemainingMinutes, g_szGagReason[id]);
     }
@@ -179,7 +193,7 @@ stock remove_gag_from_db(const szAuth[], const szIP[]) {
 LoadCmdWhitelist() {
     new szFilePath[128];
     get_configsdir(szFilePath, charsmax(szFilePath));
-    format(szFilePath, charsmax(szFilePath), "%s/gag_whitelist.ini", szFilePath);
+    add(szFilePath, charsmax(szFilePath), "/gag_whitelist.ini");
     
     if (!file_exists(szFilePath)) {
         new f = fopen(szFilePath, "wt");
@@ -194,7 +208,7 @@ LoadCmdWhitelist() {
     new f = fopen(szFilePath, "rt");
     if (!f) return;
     
-    new szLine[32];
+    new szLine[128];
     while (!feof(f)) {
         fgets(f, szLine, charsmax(szLine));
         replace_all(szLine, charsmax(szLine), "^n", "");
@@ -216,9 +230,19 @@ public cmd_say(id) {
         new szText[128];
         read_args(szText, charsmax(szText));
         remove_quotes(szText);
+        trim(szText);
+        
+        if (szText[0] == '@') {
+            if (access(id, ADMIN_CHAT)) {
+                return PLUGIN_CONTINUE; // Sadece yetkili admin chatine izin ver
+            }
+        }
         
         // Gagli olsa bile kullanabilecegi guvenli komutlar
         if (szText[0] == '/' || szText[0] == '.') {
+            if (access(id, ADMIN_KICK)) {
+                return PLUGIN_CONTINUE; // Yetkili adminler susturulsa bile chat komutlarini (örn: /gagmenu, /ungag) kullanabilsin.
+            }
             new szCmd[32], szFirstWord[32];
             new bool:bAllowed = false;
             parse(szText, szFirstWord, charsmax(szFirstWord));
@@ -261,8 +285,18 @@ public cmd_say_team(id) {
         new szText[128];
         read_args(szText, charsmax(szText));
         remove_quotes(szText);
+        trim(szText);
+        
+        if (szText[0] == '@') {
+            if (access(id, ADMIN_CHAT)) {
+                return PLUGIN_CONTINUE; // Sadece yetkili admin chatine izin ver
+            }
+        }
         
         if (szText[0] == '/' || szText[0] == '.') {
+            if (access(id, ADMIN_KICK)) {
+                return PLUGIN_CONTINUE; // Yetkili adminler takım chatinden de komutları kullanabilsin
+            }
             new szCmd[32], szFirstWord[32];
             new bool:bAllowed = false;
             parse(szText, szFirstWord, charsmax(szFirstWord));
@@ -301,6 +335,7 @@ public cmd_say_team(id) {
 }
 
 public refwd_CanPlayerHearPlayer(receiver, sender) {
+    if (sender < 1 || sender > 32) return HC_CONTINUE;
     if (g_bIsGagged[sender]) {
         SetHookChainReturn(ATYPE_BOOL, false);
         return HC_SUPERCEDE;
@@ -311,16 +346,31 @@ public refwd_CanPlayerHearPlayer(receiver, sender) {
 // Natives
 public bool:native_is_gagged(plugin_id, num_params) {
     new id = get_param(1);
+    if (id < 1 || id > 32) return false;
     return g_bIsGagged[id];
 }
 
 public bool:native_set_gag(plugin_id, num_params) {
     new admin_id = get_param(1);
     new target_id = get_param(2);
+    
+    if (target_id < 1 || target_id > 32 || (admin_id < 0 || admin_id > 32)) {
+        return false;
+    }
+    
     new minutes = get_param(3);
     
     new szReason[64];
     get_string(4, szReason, charsmax(szReason));
+    trim(szReason);
+    if (szReason[0] == '^0') {
+        copy(szReason, charsmax(szReason), "Belirtilmedi");
+    }
+    
+    new bool:bIsAbsolute = false;
+    if (num_params >= 5) {
+        bIsAbsolute = bool:get_param(5);
+    }
     
     // Delimiter Injection Korumasi
     replace_all(szReason, charsmax(szReason), "^^", "");
@@ -328,44 +378,51 @@ public bool:native_set_gag(plugin_id, num_params) {
     if (!is_user_connected(target_id)) return false;
     
     if (access(target_id, ADMIN_IMMUNITY) && admin_id != target_id && admin_id != 0) {
-        client_print_color(admin_id, print_team_default, "%sDokunulmazligi olan bir oyuncuyu gaglayamazsiniz!", GAG_TAG);
+        if (admin_id > 0 && is_user_connected(admin_id)) {
+            client_print_color(admin_id, print_team_default, "%sDokunulmazligi olan bir oyuncuyu gaglayamazsiniz!", GAG_TAG);
+        }
         return false;
     }
     
     new iEnd = (minutes == 0) ? 0 : get_systime() + (minutes * 60);
     
     new bool:bIsExtension = false;
-    new bool:bIsShortening = false;
+    new bool:bIsAbsoluteUpdate = false;
+    new bool:bFromInfiniteToTimed = false;
     new iAddedMinutes = minutes;
     
     if (g_bIsGagged[target_id] && minutes != 0) {
         if (g_iGagEnd[target_id] == 0) {
-            // Sinirsiz gagliydi, simdi sureli yapiliyo -> Kisaltma!
-            bIsShortening = true;
+            // Sinirsiz gagliydi, simdi sureli yapiliyo -> Ozel Durum
+            bFromInfiniteToTimed = true;
             iAddedMinutes = minutes;
         } else {
-            new iRemainingSeconds = g_iGagEnd[target_id] - get_systime();
-            if (iRemainingSeconds > 0) {
-                new iRemainingMins = iRemainingSeconds / 60;
-                if (minutes < iRemainingMins) {
-                    bIsShortening = true;
-                    iAddedMinutes = iRemainingMins - minutes;
-                    if (iAddedMinutes < 1) iAddedMinutes = 1;
-                } else if (minutes > iRemainingMins) {
-                    bIsExtension = true;
-                    iAddedMinutes = minutes - iRemainingMins;
-                    if (iAddedMinutes < 1) iAddedMinutes = 1;
+            if (bIsAbsolute) {
+                new iRemainingSeconds = g_iGagEnd[target_id] - get_systime();
+                if (iRemainingSeconds > 0) {
+                    new iRemainingMins = (iRemainingSeconds + 59) / 60;
+                    if (minutes != iRemainingMins) {
+                        bIsAbsoluteUpdate = true;
+                        iEnd = get_systime() + (minutes * 60);
+                    }
                 }
+            } else {
+                // Zaten sureli gagliyor ve relative -> Verilen dakikayi UZERINE EKLE
+                bIsExtension = true;
+                iEnd = g_iGagEnd[target_id] + (minutes * 60);
             }
         }
     }
     g_bIsGagged[target_id] = true;
     g_iGagEnd[target_id] = iEnd;
-    copy(g_szGagReason[target_id], charsmax(g_szGagReason[]), szReason);
+    copy(g_szGagReason[target_id], charsmax(g_szGagReason[target_id]), szReason);
     
     remove_task(target_id + TASK_GAG_EXPIRE);
-    if (minutes > 0) {
-        set_task(float(minutes * 60), "task_GagExpired", target_id + TASK_GAG_EXPIRE);
+    if (iEnd > 0) {
+        new iRemaining = iEnd - get_systime();
+        if (iRemaining > 0) {
+            set_task(float(iRemaining), "task_GagExpired", target_id + TASK_GAG_EXPIRE);
+        }
     }
     
     new szData[128];
@@ -377,7 +434,7 @@ public bool:native_set_gag(plugin_id, num_params) {
     new szTargetName[32], szAdminName[32], szAdminAuthID[35];
     get_user_name(target_id, szTargetName, charsmax(szTargetName));
     
-    if (admin_id == 0) {
+    if (admin_id == 0 || !is_user_connected(admin_id)) {
         copy(szAdminName, charsmax(szAdminName), "Server");
         copy(szAdminAuthID, charsmax(szAdminAuthID), "Server");
     } else {
@@ -388,12 +445,15 @@ public bool:native_set_gag(plugin_id, num_params) {
     if (minutes == 0) {
         client_print_color(0, print_team_default, "%s^3%s ^1yetkilisi, ^4%s ^1adli oyuncuyu ^3SINIRSIZ ^1sureyle gag'ladi. Sebep: ^3%s", GAG_TAG, szAdminName, szTargetName, szReason);
         log_to_file("mf_gag.log", "Yetkili: %s (%s) | Hedef: %s (%s) | Sure: Sinirsiz | Sebep: %s", szAdminName, szAdminAuthID, szTargetName, g_szAuthID[target_id], szReason);
+    } else if (bFromInfiniteToTimed) {
+        client_print_color(0, print_team_default, "%s^3%s ^1yetkilisi, ^4%s ^1adli oyuncunun ^3SINIRSIZ ^1gag cezasini ^3%d dakika ^1olarak guncelledi. Sebep: ^3%s", GAG_TAG, szAdminName, szTargetName, minutes, szReason);
+        log_to_file("mf_gag.log", "Yetkili: %s (%s) | Hedef: %s (%s) | Sure: Sinirsizdan %d Dakikaya Guncellendi | Sebep: %s", szAdminName, szAdminAuthID, szTargetName, g_szAuthID[target_id], minutes, szReason);
     } else if (bIsExtension) {
         client_print_color(0, print_team_default, "%s^3%s ^1yetkilisi, ^4%s ^1adli oyuncunun gag suresini ^3%d dakika ^1uzatti. Sebep: ^3%s", GAG_TAG, szAdminName, szTargetName, iAddedMinutes, szReason);
         log_to_file("mf_gag.log", "Yetkili: %s (%s) | Hedef: %s (%s) | Sure: %d Dakika Uzatildi | Sebep: %s", szAdminName, szAdminAuthID, szTargetName, g_szAuthID[target_id], iAddedMinutes, szReason);
-    } else if (bIsShortening) {
-        client_print_color(0, print_team_default, "%s^3%s ^1yetkilisi, ^4%s ^1adli oyuncunun gag suresini ^3%d dakika ^1kisaltti. Sebep: ^3%s", GAG_TAG, szAdminName, szTargetName, iAddedMinutes, szReason);
-        log_to_file("mf_gag.log", "Yetkili: %s (%s) | Hedef: %s (%s) | Sure: %d Dakika Kisaltildi | Sebep: %s", szAdminName, szAdminAuthID, szTargetName, g_szAuthID[target_id], iAddedMinutes, szReason);
+    } else if (bIsAbsoluteUpdate) {
+        client_print_color(0, print_team_default, "%s^3%s ^1yetkilisi, ^4%s ^1adli oyuncunun gag suresini ^3%d dakika ^1olarak guncelledi. Sebep: ^3%s", GAG_TAG, szAdminName, szTargetName, minutes, szReason);
+        log_to_file("mf_gag.log", "Yetkili: %s (%s) | Hedef: %s (%s) | Sure: %d Dakikaya Guncellendi | Sebep: %s", szAdminName, szAdminAuthID, szTargetName, g_szAuthID[target_id], minutes, szReason);
     } else {
         client_print_color(0, print_team_default, "%s^3%s ^1yetkilisi, ^4%s ^1adli oyuncuyu ^3%d dakika ^1sureyle gag'ladi. Sebep: ^3%s", GAG_TAG, szAdminName, szTargetName, minutes, szReason);
         log_to_file("mf_gag.log", "Yetkili: %s (%s) | Hedef: %s (%s) | Sure: %d Dakika | Sebep: %s", szAdminName, szAdminAuthID, szTargetName, g_szAuthID[target_id], minutes, szReason);
@@ -405,6 +465,10 @@ public bool:native_set_gag(plugin_id, num_params) {
 public bool:native_remove_gag(plugin_id, num_params) {
     new admin_id = get_param(1);
     new target_id = get_param(2);
+    
+    if (target_id < 1 || target_id > 32 || (admin_id < 0 || admin_id > 32)) {
+        return false;
+    }
     
     if (!is_user_connected(target_id)) return false;
     if (!g_bIsGagged[target_id]) return false;
@@ -418,7 +482,7 @@ public bool:native_remove_gag(plugin_id, num_params) {
     new szTargetName[32], szAdminName[32], szAdminAuthID[35];
     get_user_name(target_id, szTargetName, charsmax(szTargetName));
     
-    if (admin_id == 0) {
+    if (admin_id == 0 || !is_user_connected(admin_id)) {
         copy(szAdminName, charsmax(szAdminName), "Server");
         copy(szAdminAuthID, charsmax(szAdminAuthID), "Server");
     } else {
@@ -434,8 +498,10 @@ public bool:native_remove_gag(plugin_id, num_params) {
 
 public native_get_time(plugin_id, num_params) {
     new id = get_param(1);
+    if (id < 1 || id > 32) return -1;
     if (!g_bIsGagged[id]) return -1;
     if (g_iGagEnd[id] == 0) return 0;
     
-    return g_iGagEnd[id] - get_systime();
+    new iRemaining = g_iGagEnd[id] - get_systime();
+    return (iRemaining > 0) ? iRemaining : 1;
 }

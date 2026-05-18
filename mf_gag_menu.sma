@@ -80,7 +80,7 @@ public ShowPlayerMenu(id) {
         target = players[i];
         
         get_user_name(target, szName, charsmax(szName));
-        num_to_str(target, szTargetId, charsmax(szTargetId));
+        num_to_str(get_user_userid(target), szTargetId, charsmax(szTargetId));
         
         // Takim Tagı
         new iTeam = get_user_team(target);
@@ -130,22 +130,23 @@ public Handler_PlayerMenu(id, menu, item) {
         return PLUGIN_CONTINUE;
     }
     
-    new szData[6], dummy, iPage;
+    new szData[10], dummy, iPage;
     player_menu_info(id, dummy, iPage);
     g_iCurrentPage[id] = iPage; // Sayfayi kaydet
     
     menu_item_getinfo(menu, item, dummy, szData, charsmax(szData), _, _, dummy);
     
-    new target = str_to_num(szData);
+    new iUserId = str_to_num(szData);
+    new target = find_player_by_userid(iUserId);
     
-    if (!is_user_connected(target)) {
+    if (!target) {
         client_print_color(id, print_team_default, "%sOyuncu oyundan ayrilmis.", GAG_TAG);
         menu_destroy(menu);
         ShowPlayerMenu(id);
         return PLUGIN_HANDLED;
     }
     
-    g_MenuTarget[id] = target;
+    g_MenuTarget[id] = iUserId;
     g_bFromUngag[id] = false;
     
     if (mfgag_is_gagged(target)) {
@@ -161,8 +162,8 @@ public Handler_PlayerMenu(id, menu, item) {
 }
 
 public ShowGagActionMenu(id) {
-    new target = g_MenuTarget[id];
-    if (!is_user_connected(target)) return;
+    new target = find_player_by_userid(g_MenuTarget[id]);
+    if (!target) return;
     
     new szName[32], szTitle[128];
     get_user_name(target, szName, charsmax(szName));
@@ -191,9 +192,9 @@ public Handler_GagActionMenu(id, menu, item) {
     menu_item_getinfo(menu, item, dummy, szData, charsmax(szData), _, _, dummy);
     
     new iAction = str_to_num(szData);
-    new target = g_MenuTarget[id];
+    new target = find_player_by_userid(g_MenuTarget[id]);
     
-    if (!is_user_connected(target)) {
+    if (!target) {
         client_print_color(id, print_team_default, "%sOyuncu oyundan ayrilmis.", GAG_TAG);
         menu_destroy(menu);
         if (g_bFromUngag[id]) ShowUngagMenu(id);
@@ -221,8 +222,8 @@ public Handler_GagActionMenu(id, menu, item) {
 }
 
 public ShowGagTimeMenu(id) {
-    new target = g_MenuTarget[id];
-    if (!is_user_connected(target)) return;
+    new target = find_player_by_userid(g_MenuTarget[id]);
+    if (!target) return;
     
     new szName[32], szTitle[128];
     get_user_name(target, szName, charsmax(szName));
@@ -279,8 +280,8 @@ public Handler_GagTimeMenu(id, menu, item) {
 }
 
 public ShowExtendMenu(id) {
-    new target = g_MenuTarget[id];
-    if (!is_user_connected(target)) return;
+    new target = find_player_by_userid(g_MenuTarget[id]);
+    if (!target) return;
     
     new szName[32], szTitle[128];
     get_user_name(target, szName, charsmax(szName));
@@ -319,8 +320,8 @@ public Handler_ExtendMenu(id, menu, item) {
     new szData[10], dummy;
     menu_item_getinfo(menu, item, dummy, szData, charsmax(szData), _, _, dummy);
     
-    new target = g_MenuTarget[id];
-    if (!is_user_connected(target)) {
+    new target = find_player_by_userid(g_MenuTarget[id]);
+    if (!target) {
         client_print_color(id, print_team_default, "%sOyuncu oyundan ayrilmis.", GAG_TAG);
         menu_destroy(menu);
         return PLUGIN_HANDLED;
@@ -344,7 +345,7 @@ public Handler_ExtendMenu(id, menu, item) {
         if (iCurrentTime == 0) {
             client_print_color(id, print_team_default, "%sBu oyuncu zaten sinirsiz gagli!", GAG_TAG);
         } else {
-            mfgag_set_gag(id, target, iRemainingMins + iTime, "Sure Uzatildi");
+            mfgag_set_gag(id, target, iRemainingMins + iTime, "Sure Uzatildi", true);
         }
     }
     
@@ -356,8 +357,8 @@ public Handler_ExtendMenu(id, menu, item) {
 }
 
 public ShowShortenMenu(id) {
-    new target = g_MenuTarget[id];
-    if (!is_user_connected(target)) return;
+    new target = find_player_by_userid(g_MenuTarget[id]);
+    if (!target) return;
     
     new szName[32], szTitle[128];
     get_user_name(target, szName, charsmax(szName));
@@ -395,8 +396,8 @@ public Handler_ShortenMenu(id, menu, item) {
     new szData[10], dummy;
     menu_item_getinfo(menu, item, dummy, szData, charsmax(szData), _, _, dummy);
     
-    new target = g_MenuTarget[id];
-    if (!is_user_connected(target)) {
+    new target = find_player_by_userid(g_MenuTarget[id]);
+    if (!target) {
         client_print_color(id, print_team_default, "%sOyuncu oyundan ayrilmis.", GAG_TAG);
         menu_destroy(menu);
         return PLUGIN_HANDLED;
@@ -421,7 +422,7 @@ public Handler_ShortenMenu(id, menu, item) {
         if (iNewMins <= 0) {
             mfgag_remove_gag(id, target);
         } else {
-            mfgag_set_gag(id, target, iNewMins, "Sure Kisaltildi");
+            mfgag_set_gag(id, target, iNewMins, "Sure Kisaltildi", true);
         }
     }
     
@@ -457,7 +458,7 @@ public ShowUngagMenu(id) {
         if (mfgag_is_gagged(target)) {
             bGaggedFound = true;
             get_user_name(target, szName, charsmax(szName));
-            num_to_str(target, szTargetId, charsmax(szTargetId));
+            num_to_str(get_user_userid(target), szTargetId, charsmax(szTargetId));
             
             new iTime = mfgag_get_time(target);
             new szItem[64];
@@ -497,19 +498,20 @@ public Handler_UngagMenu(id, menu, item) {
         return PLUGIN_CONTINUE;
     }
     
-    new szData[6], dummy;
+    new szData[10], dummy;
     menu_item_getinfo(menu, item, dummy, szData, charsmax(szData), _, _, dummy);
     
-    new target = str_to_num(szData);
+    new iUserId = str_to_num(szData);
+    new target = find_player_by_userid(iUserId);
     
-    if (!is_user_connected(target)) {
+    if (!target) {
         client_print_color(id, print_team_default, "%sOyuncu oyundan ayrilmis.", GAG_TAG);
         menu_destroy(menu);
         ShowUngagMenu(id);
         return PLUGIN_HANDLED;
     }
     
-    g_MenuTarget[id] = target;
+    g_MenuTarget[id] = iUserId;
     g_bFromUngag[id] = true;
     
     menu_destroy(menu);
@@ -543,14 +545,14 @@ public cmd_CustomGagTime(id) {
     }
     
     new iTime = str_to_num(szArg);
-    new target = g_MenuTarget[id];
+    new target = find_player_by_userid(g_MenuTarget[id]);
     
     if (g_bIsShortening[id] && iTime == 0) {
         client_print_color(id, print_team_default, "%sSure kisaltirken 0 (Sinirsiz) giremezsiniz!", GAG_TAG);
         return PLUGIN_HANDLED;
     }
     
-    if (is_user_connected(target)) {
+    if (target && is_user_connected(target)) {
         if (mfgag_is_gagged(target) && iTime != 0) {
             new iCurrentTime = mfgag_get_time(target);
             if (iCurrentTime > 0) {
@@ -563,13 +565,13 @@ public cmd_CustomGagTime(id) {
                         else ShowPlayerMenu(id);
                         return PLUGIN_HANDLED;
                     }
-                    mfgag_set_gag(id, target, iNewMins, "Sure Kisaltildi");
+                    mfgag_set_gag(id, target, iNewMins, "Sure Kisaltildi", true);
                     if (g_bFromUngag[id]) ShowUngagMenu(id);
                     else ShowPlayerMenu(id);
                     return PLUGIN_HANDLED;
                 } else {
                     new iNewMins = iRemainingMins + iTime;
-                    mfgag_set_gag(id, target, iNewMins, "Sure Uzatildi");
+                    mfgag_set_gag(id, target, iNewMins, "Sure Uzatildi", true);
                     if (g_bFromUngag[id]) ShowUngagMenu(id);
                     else ShowPlayerMenu(id);
                     return PLUGIN_HANDLED;
@@ -592,8 +594,8 @@ public cmd_CustomGagTime(id) {
 }
 
 public ShowReasonMenu(id) {
-    new target = g_MenuTarget[id];
-    if (!is_user_connected(target)) return;
+    new target = find_player_by_userid(g_MenuTarget[id]);
+    if (!target) return;
     
     new szName[32], szTitle[128];
     get_user_name(target, szName, charsmax(szName));
@@ -635,10 +637,10 @@ public Handler_ReasonMenu(id, menu, item) {
         return PLUGIN_HANDLED;
     }
     
-    new target = g_MenuTarget[id];
+    new target = find_player_by_userid(g_MenuTarget[id]);
     new iTime = g_MenuTime[id];
     
-    if (is_user_connected(target)) {
+    if (target && is_user_connected(target)) {
         mfgag_set_gag(id, target, iTime, szData);
     }
     
@@ -656,10 +658,10 @@ public cmd_CustomGagReason(id) {
     new szArg[64];
     read_argv(1, szArg, charsmax(szArg));
     
-    new target = g_MenuTarget[id];
+    new target = find_player_by_userid(g_MenuTarget[id]);
     new iTime = g_MenuTime[id];
     
-    if (is_user_connected(target)) {
+    if (target && is_user_connected(target)) {
         mfgag_set_gag(id, target, iTime, szArg);
     }
     
@@ -667,4 +669,15 @@ public cmd_CustomGagReason(id) {
     else ShowPlayerMenu(id);
     
     return PLUGIN_HANDLED;
+}
+
+find_player_by_userid(iUserId) {
+    if (iUserId <= 0) return 0;
+    
+    for (new i = 1; i <= get_maxplayers(); i++) {
+        if (is_user_connected(i) && get_user_userid(i) == iUserId) {
+            return i;
+        }
+    }
+    return 0;
 }

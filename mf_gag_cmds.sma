@@ -50,7 +50,7 @@ public cmd_gag(id, level, cid) {
         i++;
     }
     
-    if (!bIsNumeric || i > 6) {
+    if (!bIsNumeric || i == 0 || i > 6) {
          console_print(id, "[GAG] Gecersiz sure! Sadece sayi kullanin (Max 999999).");
          return PLUGIN_HANDLED;
     }
@@ -91,6 +91,7 @@ public cmd_say(id) {
     new szText[128];
     read_args(szText, charsmax(szText));
     remove_quotes(szText);
+    trim(szText);
     
     new szCmd[16], szTarget[32], szTime[32], szReason[64];
     new iPos = 0;
@@ -98,15 +99,24 @@ public cmd_say(id) {
     if (iPos != -1) iPos = argparse(szText, iPos, szTarget, charsmax(szTarget));
     if (iPos != -1) iPos = argparse(szText, iPos, szTime, charsmax(szTime));
     
+    remove_quotes(szTarget);
+    remove_quotes(szTime);
+    
     if (iPos != -1) {
         copy(szReason, charsmax(szReason), szText[iPos]);
         trim(szReason);
+        remove_quotes(szReason);
     } else {
         szReason[0] = '^0';
     }
     
     if (equali(szCmd, "/gag") || equali(szCmd, "/mgag") || equali(szCmd, "/mg")) {
-        if (!access(id, ADMIN_KICK)) return PLUGIN_CONTINUE;
+        if (!access(id, ADMIN_KICK)) {
+            if (mfgag_is_gagged(id)) {
+                return PLUGIN_HANDLED;
+            }
+            return PLUGIN_CONTINUE;
+        }
         
         if (szTarget[0] == '^0') {
             client_print_color(id, print_team_default, "%sKullanim: ^4/gag ^3<isim> ^1<sure>", GAG_TAG);
@@ -131,7 +141,7 @@ public cmd_say(id) {
             i++;
         }
         
-        if (!bIsNumeric || i > 6) {
+        if (!bIsNumeric || i == 0 || i > 6) {
              client_print_color(id, print_team_default, "%sGecersiz sure! Maksimum 999999 girebilirsiniz.", GAG_TAG);
              return PLUGIN_HANDLED;
         }
@@ -147,7 +157,12 @@ public cmd_say(id) {
         return PLUGIN_HANDLED; // Gizle
     }
     else if (equali(szCmd, "/ungag") || equali(szCmd, "/mungag") || equali(szCmd, "/mug")) {
-        if (!access(id, ADMIN_KICK)) return PLUGIN_CONTINUE;
+        if (!access(id, ADMIN_KICK)) {
+            if (mfgag_is_gagged(id)) {
+                return PLUGIN_HANDLED;
+            }
+            return PLUGIN_CONTINUE;
+        }
         
         if (szTarget[0] == '^0') {
             client_print_color(id, print_team_default, "%sKullanim: ^4/ungag ^3<isim>", GAG_TAG);
