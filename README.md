@@ -3,10 +3,13 @@
 Copyright (c) 2026 [MochiFoxy && FoxyBlinks]. All rights reserved
 CS 1.6 (GoldSrc) motoru için geliştirilmiş, yüksek performanslı, güvenli, estetik ve **yapay zeka benzeri akıllı filtreleme** özelliklerine sahip gelişmiş bir Gag (Susturma) ve Otomatik Ceza sistemidir. AMX Mod X altyapısını kullanır.
 
+> [!NOTE]
+> **Güncel Sürüm:** v1.3_Fix (64-Slot, Non-Steam Çakışma Önleme ve Akıllı Filtreleme/Optimizasyon Yamaları içerir).
+
 [![Game](https://img.shields.io/badge/Game-CS%201.6-orange.svg)](https://store.steampowered.com/app/10/CounterStrike/)
 [![Platform](https://img.shields.io/badge/Platform-AMX%20Mod%20X%201.10%2B-blue.svg)](https://www.amxmodx.org/)
 [![Requirements](https://img.shields.io/badge/Gereksinim-ReAPI-red.svg)]()
-[![Version](https://img.shields.io/badge/Versiyon-1.6-green.svg)]()
+[![Version](https://img.shields.io/badge/Versiyon-1.3_Fix-green.svg)]()
 
 ---
 
