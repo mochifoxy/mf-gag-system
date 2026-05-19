@@ -5,7 +5,7 @@ CS 1.6 (GoldSrc) motoru için geliştirilmiş, yüksek performanslı, güvenli, 
 
 [![Game](https://img.shields.io/badge/Game-CS%201.6-orange.svg)](https://store.steampowered.com/app/10/CounterStrike/)
 [![Platform](https://img.shields.io/badge/Platform-AMX%20Mod%20X%201.10%2B-blue.svg)](https://www.amxmodx.org/)
-[![Version](https://img.shields.io/badge/Versiyon-1.5-green.svg)]()
+[![Version](https://img.shields.io/badge/Versiyon-1.6-green.svg)]()
 
 ---
 
@@ -15,13 +15,14 @@ CS 1.6 (GoldSrc) motoru için geliştirilmiş, yüksek performanslı, güvenli, 
 *   **🧱 Modüler Mimari:** Core, Commands ve Menu olmak üzere 3 ayrı parçadan oluşur. Birinde yapılan değişiklik diğerlerini bozmaz.
 *   **💾 Kalıcı Kayıt (nVault):** Oyuncu sunucudan çıksa bile cezası `AuthID` ve `IP` üzerinden hafızada tutulur. Süre dolmadan girerse cezası devam eder.
 *   **🎙️ ReAPI Entegrasyonu:** Ses engellemesi için en modern ve performanslı yöntem olan ReAPI `CanPlayerHearPlayer` kancası kullanılmıştır.
+*   **👥 64-Slot Desteği (High-Capacity):** Sunucudaki oyuncu limiti 32'den 64'e yükseltilmiştir. Tüm bellek yapıları ve dizi boyutları 65 olarak genişletilmiş, sınır taşmasından (Out of Bounds) kaynaklı çökmeler engellenmiştir.
 *   **🎨 Estetik Tasarım:** CS 1.6 motorunun sınırları zorlanarak, tüm dillerde ve sistemlerde bozulmadan çalışan şık bir menü tasarımı yapılmıştır.
 *   **🛠️ Admin Dostu İşlem Menüsü:** Gaglı bir oyuncuya tıklandığında "Gagı Kaldır", "Süreyi Uzat" veya "Süreyi Kısalt" seçenekleri sunar. Sebep seçimi ekranında **seçilen süre ve hedef oyuncu** gösterilir.
 *   **🧠 UI/UX İyileştirmeleri:** Menüde sayfa hafızası (kaldığın sayfayı unutmaz), oyuncuların takım tagları (`[T]`, `[CT]`) ve adminin kendi isminin yanında `[SEN]` ibaresi yer alır.
 *   **🔓 Komut İzni:** Gaglı oyuncular `/top15`, `/rank` veya `/gagmenu` gibi `/` ve `.` ile başlayan komutları kullanmaya devam edebilirler.
 
 ### 🤖 Akıllı Otomatik Gag Sistemi
-*   **⚡ Trie Map Teknolojisi:** Yasaklı kelime aramaları O(1) karmaşıklığında, yani şimşek hızında yapılır. Büyük kelime listelerinde bile sunucuda kesinlikle lag veya FPS düşüşü yapmaz.
+*   **⚡ Trie Map Teknolojisi:** Yasaklı kelime ve Whitelist aramaları O(1) karmaşıklığında, yani şimşek hızında yapılır. Büyük kelime listelerinde bile sunucuda kesinlikle lag veya CPU darboğazı yapmaz.
 *   **🧠 Akıllı Filtreleme (Anti-Bypass):**
     *   *O(N) Tek Geçişli Temizleyici:* Eski usül 12 kez `replace_all` çalıştırmak yerine, kelimeyi tek bir döngüde UTF-8 Türkçe karakterleri ve leetspeak dönüşümlerini yaparak temizler. İşlemci dostudur.
     *   *Harf Sıkıştırma:* `kuuuufuuuur` yazılsa bile otomatik olarak `kufur` haline getirilip yakalanır.
@@ -34,10 +35,14 @@ CS 1.6 (GoldSrc) motoru için geliştirilmiş, yüksek performanslı, güvenli, 
 *   **💾 Deferred Saving (Gecikmeli Kayıt):** nVault yazmaları anlık olarak yapılmaz. Sadece oyuncu çıktığında ve harita bittiğinde yazılarak disk I/O yükü minimuma indirilmiştir.
 *   **🛡️ Whitelist (Beyaz Liste):** `configs/whitelist.txt` dosyasına eklenen kelimeler (Örn: "nasilsin") küfür korumasına takılmaz.
 
-### 🔒 Güvenlik Yamaları
+### 🔒 Güvenlik & Stabilizasyon Yamaları
+*   **👥 Non-Steam Çakışma Önleme (IP-Only Fallback):** Sunucudaki Non-Steam oyuncuların kullandığı ortak/generic Steam ID'ler (`VALVE_ID_LAN`, `STEAM_ID_LAN`, `STEAM_ID_PENDING` vb.) tespit edilerek nVault veritabanı işlemlerinde es geçilir. Cezaları sadece benzersiz IP adresleri üzerinden yönetilerek masum oyuncuların zincirleme cezalandırılması engellenmiştir.
+*   **💬 Chat Komut Parser Düzeltmesi:** Chat üzerinden boşluklu isimleri tırnak içinde susturmak isterken (`/gag "Mochi Foxy" 10`) parser'ın tırnakları erken silerek ismi yanlış bölmesi hatası giderilmiştir. `read_argv(1)` kullanılarak tırnak yapısı korunmuş ve başarılı parse edilmesi sağlanmıştır.
+*   **🧱 Stack Corruption Önleme:** Menülerdeki `get_players` kullanımı ve yerel `players[32]` tampon dizileri tamamen kaldırılarak yerine `1`'den `get_maxplayers()`'a kadar güvenli manuel döngüler yazılmıştır. Böylece 32'den fazla oyuncu olduğunda oluşabilecek stack bozulma çökme riski sıfırlanmıştır.
+*   **🛡️ Admin Dokunulmazlığı:** `ADMIN_IMMUNITY` yetkisine sahip yetkililer otomatik küfür ve flood susturmalarından muaf tutulmuştur.
 *   **Zaman Makinesi Açığı Kapatıldı:** Oyuncu küfür ettiğinde af süresi dürüstçe baştan başlar.
 *   **Zaman Hırsızlığı Açığı Kapatıldı:** Harita değiştiğinde veya oyuncu çıkıp girdiğinde uslu durduğu süreler nVault'a doğru kaydedilir, hakkı yenmez.
-*   **Delimiter Injection Koruması:** Adminlerin girdiği sebeplerin içine `^^` yazarak veritabanını bozması engellenmiştir.
+*   **Delimiter Injection Korumasi:** Adminlerin girdiği sebeplerin içine `^^` yazarak veritabanını bozması engellenmiştir.
 *   **Ghost Target Koruması:** Menüden çıkıldığında veya admin oyundan düştüğünde hedeflerin karışması engellenmiştir.
 
 ---
