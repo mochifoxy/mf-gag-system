@@ -5,7 +5,16 @@ CS 1.6 (GoldSrc) motoru için geliştirilmiş, yüksek performanslı, güvenli, 
 
 [![Game](https://img.shields.io/badge/Game-CS%201.6-orange.svg)](https://store.steampowered.com/app/10/CounterStrike/)
 [![Platform](https://img.shields.io/badge/Platform-AMX%20Mod%20X%201.10%2B-blue.svg)](https://www.amxmodx.org/)
+[![Requirements](https://img.shields.io/badge/Gereksinim-ReAPI-red.svg)]()
 [![Version](https://img.shields.io/badge/Versiyon-1.6-green.svg)]()
+
+---
+
+## 📋 Gereksinimler
+
+Eklentinin sorunsuz derlenebilmesi ve çalışabilmesi için aşağıdaki altyapıların sunucuda bulunması gerekir:
+1.  **AMX Mod X 1.10.0 veya üzeri:** Gelişmiş Trie veri yapıları, modern string işleme ve `client_print_color` gibi native fonksiyonlar için.
+2.  **ReGameDLL & ReAPI Modülü:** Ses engellemesinin (Voice Gag) en performanslı ve kararlı biçimde sunucu seviyesinde kancalanması (`CanPlayerHearPlayer`) için zorunludur.
 
 ---
 
@@ -19,7 +28,7 @@ CS 1.6 (GoldSrc) motoru için geliştirilmiş, yüksek performanslı, güvenli, 
 *   **🎨 Estetik Tasarım:** CS 1.6 motorunun sınırları zorlanarak, tüm dillerde ve sistemlerde bozulmadan çalışan şık bir menü tasarımı yapılmıştır.
 *   **🛠️ Admin Dostu İşlem Menüsü:** Gaglı bir oyuncuya tıklandığında "Gagı Kaldır", "Süreyi Uzat" veya "Süreyi Kısalt" seçenekleri sunar. Sebep seçimi ekranında **seçilen süre ve hedef oyuncu** gösterilir.
 *   **🧠 UI/UX İyileştirmeleri:** Menüde sayfa hafızası (kaldığın sayfayı unutmaz), oyuncuların takım tagları (`[T]`, `[CT]`) ve adminin kendi isminin yanında `[SEN]` ibaresi yer alır.
-*   **🔓 Komut İzni:** Gaglı oyuncular `/top15`, `/rank` veya `/gagmenu` gibi `/` ve `.` ile başlayan komutları kullanmaya devam edebilirler.
+*   **🔓 Komut İzni (Configurable):** Gaglı oyuncular `/top15`, `/rank` veya `/me` gibi sunucu komutlarını kullanmaya devam edebilirler (Dinamik olarak `gag_whitelist.ini` üzerinden yönetilir).
 
 ### 🤖 Akıllı Otomatik Gag Sistemi
 *   **⚡ Trie Map Teknolojisi:** Yasaklı kelime ve Whitelist aramaları O(1) karmaşıklığında, yani şimşek hızında yapılır. Büyük kelime listelerinde bile sunucuda kesinlikle lag veya CPU darboğazı yapmaz.
@@ -33,7 +42,6 @@ CS 1.6 (GoldSrc) motoru için geliştirilmiş, yüksek performanslı, güvenli, 
 *   **⏱️ Çift Kronometre Sistemi:** Uyarılar ve İhlaller için RAM üzerinde bağımsız iki ayrı zamanlayıcı çalışır. 15 dakikalık uyarı silinmesi, 1 saatlik ihlal silinme süresini asla bozmaz.
 *   **❤️ Kademeli Sicil Temizleme:** Oyuncu temiz kaldığı her `N` saatte ihlal puanı 1 azalır. Ayrıca her 15 dakikada bir (CVAR ile ayarlanır) uslu durursa 1 uyarısı silinir.
 *   **💾 Deferred Saving (Gecikmeli Kayıt):** nVault yazmaları anlık olarak yapılmaz. Sadece oyuncu çıktığında ve harita bittiğinde yazılarak disk I/O yükü minimuma indirilmiştir.
-*   **🛡️ Whitelist (Beyaz Liste):** `configs/whitelist.txt` dosyasına eklenen kelimeler (Örn: "nasilsin") küfür korumasına takılmaz.
 
 ### 🔒 Güvenlik & Stabilizasyon Yamaları
 *   **👥 Non-Steam Çakışma Önleme (IP-Only Fallback):** Sunucudaki Non-Steam oyuncuların kullandığı ortak/generic Steam ID'ler (`VALVE_ID_LAN`, `STEAM_ID_LAN`, `STEAM_ID_PENDING` vb.) tespit edilerek nVault veritabanı işlemlerinde es geçilir. Cezaları sadece benzersiz IP adresleri üzerinden yönetilerek masum oyuncuların zincirleme cezalandırılması engellenmiştir.
@@ -42,7 +50,7 @@ CS 1.6 (GoldSrc) motoru için geliştirilmiş, yüksek performanslı, güvenli, 
 *   **🛡️ Admin Dokunulmazlığı:** `ADMIN_IMMUNITY` yetkisine sahip yetkililer otomatik küfür ve flood susturmalarından muaf tutulmuştur.
 *   **Zaman Makinesi Açığı Kapatıldı:** Oyuncu küfür ettiğinde af süresi dürüstçe baştan başlar.
 *   **Zaman Hırsızlığı Açığı Kapatıldı:** Harita değiştiğinde veya oyuncu çıkıp girdiğinde uslu durduğu süreler nVault'a doğru kaydedilir, hakkı yenmez.
-*   **Delimiter Injection Korumasi:** Adminlerin girdiği sebeplerin içine `^^` yazarak veritabanını bozması engellenmiştir.
+*   **Delimiter Injection Koruması:** Adminlerin girdiği sebeplerin içine `^^` yazarak veritabanını bozması engellenmiştir.
 *   **Ghost Target Koruması:** Menüden çıkıldığında veya admin oyundan düştüğünde hedeflerin karışması engellenmiştir.
 
 ---
@@ -64,9 +72,18 @@ addons/amxmodx/
 │   ├── mf_gag_menu.amxx
 │   └── mf_auto_gag.amxx
 └── configs/
-    ├── kufurler.txt          # 700+ kelimelik yasaklı kelime listesi
-    └── whitelist.txt         # Korumadan muaf tutulacak kelimeler
+    ├── kufurler.txt          # Yasaklı kelime listesi (Wildcard desteği)
+    ├── whitelist.txt         # Korumadan muaf kelimeler
+    └── gag_whitelist.ini     # Gaglıların yazabileceği chat komutları
 ```
+
+---
+
+## ⚙️ Yapılandırma Dosyaları (Configs)
+
+1.  **`configs/kufurler.txt`**: Yasaklı kelime veritabanıdır. Her satıra bir kelime yazılır. Kelimenin sonuna yıldız koyarak wildcard ekleyebilirsiniz (örn: `kufur*` -> kufur, kufurler, kufurlu vb. kelimeleri eşleştirir).
+2.  **`configs/whitelist.txt`**: Küfür filtresinin taramasını atlamasını istediğiniz kelimelerdir. Örneğin yasaklılar listenizde `sal` varsa, `nasilsin` kelimesinin içerdiği `sal` hecesinden dolayı filtrelenmesini engellemek için `whitelist.txt` içerisine `nasilsin` kelimesi eklenir.
+3.  **`configs/gag_whitelist.ini`**: Susturulan oyuncuların chatte engellenmeden kullanabilmesini istediğiniz chat komutlarıdır (Örn: `/rank`, `/top15`). Argüman alan bir komutun sonuna yıldız koyabilirsiniz (örn: `/ungag *`).
 
 ---
 
@@ -82,7 +99,7 @@ addons/amxmodx/
     mf_gag_menu.amxx
     mf_auto_gag.amxx
     ```
-5.  `kufurler.txt` ve `whitelist.txt` dosyalarını `addons/amxmodx/configs/` klasörüne atın.
+5.  `kufurler.txt`, `whitelist.txt` ve `gag_whitelist.ini` dosyalarını `addons/amxmodx/configs/` klasörüne atın.
 6.  Sunucuyu yeniden başlatın veya harita değiştirin.
 
 > [!IMPORTANT]
