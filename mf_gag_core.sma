@@ -17,11 +17,11 @@
 new g_Vault;
 
 // Oyuncu verileri
-new bool:g_bIsGagged[33];
-new g_iGagEnd[33];
-new g_szAuthID[33][35];
-new g_szIP[33][32];
-new g_szGagReason[33][64];
+new bool:g_bIsGagged[65];
+new g_iGagEnd[65];
+new g_szAuthID[65][35];
+new g_szIP[65][32];
+new g_szGagReason[65][64];
 
 new Array:g_aCmdWhitelist;
 
@@ -67,8 +67,8 @@ public client_putinserver(id) {
     if (is_user_bot(id) || is_user_hltv(id))
         return;
         
-    get_user_authid(id, g_szAuthID[id], charsmax(g_szAuthID[id]));
-    get_user_ip(id, g_szIP[id], charsmax(g_szIP[id]), 1);
+    get_user_authid(id, g_szAuthID[id], charsmax(g_szAuthID[]));
+    get_user_ip(id, g_szIP[id], charsmax(g_szIP[]), 1);
     
     check_gag(id + TASK_CHECK_GAG);
 }
@@ -100,10 +100,12 @@ public check_gag(task_id) {
     new szData[128], iTimestamp;
     new bool:bFound = false;
     
-    copy(g_szAuthID[id], charsmax(g_szAuthID[id]), szAuthID);
-    get_user_ip(id, g_szIP[id], charsmax(g_szIP[id]), 1);
+    copy(g_szAuthID[id], charsmax(g_szAuthID[]), szAuthID);
+    get_user_ip(id, g_szIP[id], charsmax(g_szIP[]), 1);
     
-    if (nvault_lookup(g_Vault, g_szAuthID[id], szData, charsmax(szData), iTimestamp)) {
+    new bool:bIsShared = is_steam_id_shared(g_szAuthID[id]);
+    
+    if (!bIsShared && nvault_lookup(g_Vault, g_szAuthID[id], szData, charsmax(szData), iTimestamp)) {
         bFound = true;
     }
     else if (nvault_lookup(g_Vault, g_szIP[id], szData, charsmax(szData), iTimestamp)) {
@@ -127,10 +129,12 @@ public check_gag(task_id) {
         if (iEnd > iCurrentTime || iEnd == 0) {
             g_bIsGagged[id] = true;
             g_iGagEnd[id] = iEnd;
-            copy(g_szGagReason[id], charsmax(g_szGagReason[id]), szReason);
+            copy(g_szGagReason[id], charsmax(g_szGagReason[]), szReason);
             
             // Amnesia Bug Fix: Kaydi yenile ki nvault_prune aktif cezalari silmesin
-            nvault_touch(g_Vault, g_szAuthID[id]);
+            if (!bIsShared) {
+                nvault_touch(g_Vault, g_szAuthID[id]);
+            }
             nvault_touch(g_Vault, g_szIP[id]);
             
             if (iEnd > 0) {
@@ -186,7 +190,9 @@ public task_GagExpired(task_id) {
 }
 
 stock remove_gag_from_db(const szAuth[], const szIP[]) {
-    nvault_remove(g_Vault, szAuth);
+    if (!is_steam_id_shared(szAuth)) {
+        nvault_remove(g_Vault, szAuth);
+    }
     nvault_remove(g_Vault, szIP);
 }
 
@@ -335,7 +341,7 @@ public cmd_say_team(id) {
 }
 
 public refwd_CanPlayerHearPlayer(receiver, sender) {
-    if (sender < 1 || sender > 32) return HC_CONTINUE;
+    if (sender < 1 || sender > 64) return HC_CONTINUE;
     if (g_bIsGagged[sender]) {
         SetHookChainReturn(ATYPE_BOOL, false);
         return HC_SUPERCEDE;
@@ -346,7 +352,7 @@ public refwd_CanPlayerHearPlayer(receiver, sender) {
 // Natives
 public bool:native_is_gagged(plugin_id, num_params) {
     new id = get_param(1);
-    if (id < 1 || id > 32) return false;
+    if (id < 1 || id > 64) return false;
     return g_bIsGagged[id];
 }
 
@@ -354,7 +360,7 @@ public bool:native_set_gag(plugin_id, num_params) {
     new admin_id = get_param(1);
     new target_id = get_param(2);
     
-    if (target_id < 1 || target_id > 32 || (admin_id < 0 || admin_id > 32)) {
+    if (target_id < 1 || target_id > 64 || (admin_id < 0 || admin_id > 64)) {
         return false;
     }
     
@@ -415,7 +421,7 @@ public bool:native_set_gag(plugin_id, num_params) {
     }
     g_bIsGagged[target_id] = true;
     g_iGagEnd[target_id] = iEnd;
-    copy(g_szGagReason[target_id], charsmax(g_szGagReason[target_id]), szReason);
+    copy(g_szGagReason[target_id], charsmax(g_szGagReason[]), szReason);
     
     remove_task(target_id + TASK_GAG_EXPIRE);
     if (iEnd > 0) {
@@ -428,7 +434,9 @@ public bool:native_set_gag(plugin_id, num_params) {
     new szData[128];
     formatex(szData, charsmax(szData), "%d^^%s", iEnd, szReason);
     
-    nvault_set(g_Vault, g_szAuthID[target_id], szData);
+    if (!is_steam_id_shared(g_szAuthID[target_id])) {
+        nvault_set(g_Vault, g_szAuthID[target_id], szData);
+    }
     nvault_set(g_Vault, g_szIP[target_id], szData);
     
     new szTargetName[32], szAdminName[32], szAdminAuthID[35];
@@ -466,7 +474,7 @@ public bool:native_remove_gag(plugin_id, num_params) {
     new admin_id = get_param(1);
     new target_id = get_param(2);
     
-    if (target_id < 1 || target_id > 32 || (admin_id < 0 || admin_id > 32)) {
+    if (target_id < 1 || target_id > 64 || (admin_id < 0 || admin_id > 64)) {
         return false;
     }
     
@@ -498,7 +506,7 @@ public bool:native_remove_gag(plugin_id, num_params) {
 
 public native_get_time(plugin_id, num_params) {
     new id = get_param(1);
-    if (id < 1 || id > 32) return -1;
+    if (id < 1 || id > 64) return -1;
     if (!g_bIsGagged[id]) return -1;
     if (g_iGagEnd[id] == 0) return 0;
     

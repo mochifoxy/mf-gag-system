@@ -42,6 +42,7 @@ native bool:mfgag_remove_gag(admin_id, target_id);
  */
 native mfgag_get_time(id);
 
+#if !defined argparse
 stock argparse(const input[], pos, output[], len) {
     if (pos == -1) return -1;
     new i = pos, outLen = 0;
@@ -59,3 +60,17 @@ stock argparse(const input[], pos, output[], len) {
     while (input[i] == ' ' || input[i] == '^t') i++;
     return (input[i] == '^0') ? -1 : i;
 }
+#endif
+
+stock bool:is_steam_id_shared(const szAuthID[]) {
+    if (szAuthID[0] == '^0' 
+        || equal(szAuthID, "STEAM_ID_PENDING") 
+        || equal(szAuthID, "VALVE_ID_PENDING") 
+        || equal(szAuthID, "STEAM_ID_LAN") 
+        || equal(szAuthID, "VALVE_ID_LAN")
+        || containi(szAuthID, "LAN") != -1) {
+        return true;
+    }
+    return false;
+}
+

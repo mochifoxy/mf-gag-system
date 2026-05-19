@@ -8,11 +8,11 @@
 #define VERSION "1.0"
 #define AUTHOR "mochifoxy && FoxyBlinks"
 
-new g_MenuTarget[33];
-new bool:g_bFromUngag[33];
-new g_MenuTime[33];
-new bool:g_bIsShortening[33];
-new g_iCurrentPage[33];
+new g_MenuTarget[65];
+new bool:g_bFromUngag[65];
+new g_MenuTime[65];
+new bool:g_bIsShortening[65];
+new g_iCurrentPage[65];
 
 public plugin_init() {
     register_plugin(PLUGIN, VERSION, AUTHOR);
@@ -71,13 +71,11 @@ public cmd_gagmenu(id) {
 public ShowPlayerMenu(id) {
     new menu = menu_create("\r* [Mochi] \yGAG YONETIM PANELI \r*^n\d--------------------------", "Handler_PlayerMenu");
     
-    new players[32], pnum, target;
     new szName[32], szTargetId[10], szItem[128];
     
-    get_players(players, pnum, "h"); // HLTV'yi atla
-    
-    for (new i = 0; i < pnum; i++) {
-        target = players[i];
+    for (new target = 1; target <= get_maxplayers(); target++) {
+        if (!is_user_connected(target) || is_user_hltv(target))
+            continue;
         
         get_user_name(target, szName, charsmax(szName));
         num_to_str(get_user_userid(target), szTargetId, charsmax(szTargetId));
@@ -446,14 +444,12 @@ public cmd_ungagmenu(id) {
 public ShowUngagMenu(id) {
     new menu = menu_create("\r* [Mochi] \yUNGAG YONETIM PANELI \r*^n\d--------------------------", "Handler_UngagMenu");
     
-    new players[32], pnum, target;
     new szName[32], szTargetId[10];
     new bool:bGaggedFound = false;
     
-    get_players(players, pnum, "h");
-    
-    for (new i = 0; i < pnum; i++) {
-        target = players[i];
+    for (new target = 1; target <= get_maxplayers(); target++) {
+        if (!is_user_connected(target) || is_user_hltv(target))
+            continue;
         
         if (mfgag_is_gagged(target)) {
             bGaggedFound = true;

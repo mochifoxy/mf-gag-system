@@ -89,8 +89,7 @@ public cmd_ungag(id, level, cid) {
 
 public cmd_say(id) {
     new szText[128];
-    read_args(szText, charsmax(szText));
-    remove_quotes(szText);
+    read_argv(1, szText, charsmax(szText));
     trim(szText);
     
     new szCmd[16], szTarget[32], szTime[32], szReason[64];

@@ -11,15 +11,15 @@
 
 new Trie:g_tBadWords;
 new Array:g_aBadWords;
-new Array:g_aWhitelist;
-new g_iWarnings[33];
-new g_iOffenses[33];
-new g_iWarnDecayTimer[33]; // YENI: Uyari icin ozel kronometre
-new g_iOffenseDecayTimer[33]; // YENI: Ihlal icin ozel kronometre
+new Trie:g_tWhitelist;
+new g_iWarnings[65];
+new g_iOffenses[65];
+new g_iWarnDecayTimer[65]; // YENI: Uyari icin ozel kronometre
+new g_iOffenseDecayTimer[65]; // YENI: Ihlal icin ozel kronometre
 
 // Flood Korumasi icin degiskenler
-new Float:g_flLastTalkTime[33];
-new g_iMessageCount[33];
+new Float:g_flLastTalkTime[65];
+new g_iMessageCount[65];
 
 // CVAR Pointers
 new g_pCvarEnabled;
@@ -57,7 +57,7 @@ public plugin_init() {
     g_aBadWords = ArrayCreate(32);
     LoadWords();
     
-    g_aWhitelist = ArrayCreate(32);
+    g_tWhitelist = TrieCreate();
     LoadWhitelist();
     
     g_Vault = nvault_open("autogag_offenses");
@@ -72,11 +72,11 @@ public plugin_init() {
 public plugin_end() {
     TrieDestroy(g_tBadWords);
     ArrayDestroy(g_aBadWords);
-    ArrayDestroy(g_aWhitelist);
+    TrieDestroy(g_tWhitelist);
     
     // Map kapanmadan once iceride kalan herkesin kaydini diske yaz
     new szAuthID[35], szIP[32], szData[48];
-    for (new id = 1; id <= 32; id++) {
+    for (new id = 1; id <= get_maxplayers(); id++) {
         if (is_user_connected(id) && !is_user_bot(id) && !is_user_hltv(id)) {
             if (g_iOffenses[id] > 0 || g_iWarnings[id] > 0) {
                 get_user_authid(id, szAuthID, charsmax(szAuthID));
@@ -85,7 +85,9 @@ public plugin_end() {
                 if (szAuthID[0] != '^0' && !equal(szAuthID, "STEAM_ID_PENDING") && szIP[0] != '^0') {
                     formatex(szData, charsmax(szData), "%d %d %d %d", g_iOffenses[id], g_iWarnings[id], g_iWarnDecayTimer[id], g_iOffenseDecayTimer[id]);
                     if (g_Vault) {
-                        nvault_set(g_Vault, szAuthID, szData);
+                        if (!is_steam_id_shared(szAuthID)) {
+                            nvault_set(g_Vault, szAuthID, szData);
+                        }
                         nvault_set(g_Vault, szIP, szData);
                     }
                 }
@@ -109,7 +111,9 @@ public client_disconnected(id) {
         
         if (szAuthID[0] != '^0' && !equal(szAuthID, "STEAM_ID_PENDING") && szIP[0] != '^0') {
             formatex(szData, charsmax(szData), "%d %d %d %d", g_iOffenses[id], g_iWarnings[id], g_iWarnDecayTimer[id], g_iOffenseDecayTimer[id]);
-            nvault_set(g_Vault, szAuthID, szData);
+            if (!is_steam_id_shared(szAuthID)) {
+                nvault_set(g_Vault, szAuthID, szData);
+            }
             nvault_set(g_Vault, szIP, szData);
         }
     }
@@ -119,6 +123,8 @@ public client_disconnected(id) {
     g_iWarnings[id] = 0;
     g_iMessageCount[id] = 0;
     g_flLastTalkTime[id] = 0.0;
+    g_iWarnDecayTimer[id] = 0;
+    g_iOffenseDecayTimer[id] = 0;
     remove_task(id + 5000);
 }
 
@@ -127,6 +133,8 @@ public client_putinserver(id) {
     g_flLastTalkTime[id] = 0.0;
     g_iMessageCount[id] = 0;
     g_iOffenses[id] = 0;
+    g_iWarnDecayTimer[id] = 0;
+    g_iOffenseDecayTimer[id] = 0;
     
     if (is_user_bot(id) || is_user_hltv(id)) return;
     
@@ -153,7 +161,8 @@ public load_offenses(taskid) {
     new szData[64], szCount[10], szWarnings[10], szWarnTime[20], szOffTime[20];
     
     // SteamID Kontrolu
-    if (nvault_get(g_Vault, szAuthID, szData, charsmax(szData))) {
+    new bool:bIsShared = is_steam_id_shared(szAuthID);
+    if (!bIsShared && nvault_get(g_Vault, szAuthID, szData, charsmax(szData))) {
         parse(szData, szCount, charsmax(szCount), szWarnings, charsmax(szWarnings), szWarnTime, charsmax(szWarnTime), szOffTime, charsmax(szOffTime));
         iCountID = str_to_num(szCount);
         iWarningsID = str_to_num(szWarnings);
@@ -206,10 +215,14 @@ public load_offenses(taskid) {
         }
     }
     
-    g_iOffenses[id] = max(iCountID, iCountIP);
-    g_iWarnings[id] = max(iWarningsID, iWarningsIP);
-    g_iWarnDecayTimer[id] = max(iWarnTimeID, iWarnTimeIP);
-    g_iOffenseDecayTimer[id] = max(iOffTimeID, iOffTimeIP);
+    g_iOffenses[id] = max(iCountID, iCountIP) + g_iOffenses[id];
+    g_iWarnings[id] = max(iWarningsID, iWarningsIP) + g_iWarnings[id];
+    if (g_iWarnDecayTimer[id] == 0) {
+        g_iWarnDecayTimer[id] = max(iWarnTimeID, iWarnTimeIP);
+    }
+    if (g_iOffenseDecayTimer[id] == 0) {
+        g_iOffenseDecayTimer[id] = max(iOffTimeID, iOffTimeIP);
+    }
 }
 
 LoadWhitelist() {
@@ -244,7 +257,7 @@ LoadWhitelist() {
         CleanWord(szClean);
         
         if (szClean[0] != '^0') {
-            ArrayPushString(g_aWhitelist, szClean);
+            TrieSetCell(g_tWhitelist, szClean, 1);
         }
     }
     fclose(f);
@@ -301,6 +314,9 @@ LoadWords() {
 
 public cmd_Say(id) {
     if (!is_user_connected(id)) return PLUGIN_CONTINUE;
+    
+    // Admin dokunulmazligi korumasi (Otomatik gagdan muafiyet)
+    if (access(id, ADMIN_IMMUNITY)) return PLUGIN_CONTINUE;
     
     if (!get_pcvar_num(g_pCvarEnabled)) return PLUGIN_CONTINUE;
     
@@ -396,27 +412,10 @@ public cmd_Say(id) {
     copy(szGlobalSpaceless, charsmax(szGlobalSpaceless), szMessage);
     CleanWord(szGlobalSpaceless);
     
+    // Program kurdum -> amk hatasini engellemek icin sadece tam eslesme (exact match) kontrol ediyoruz
     if (szGlobalSpaceless[0] != '^0') {
-        if (TrieKeyExists(g_tBadWords, szGlobalSpaceless)) {
+        if (TrieKeyExists(g_tBadWords, szGlobalSpaceless) && !TrieKeyExists(g_tWhitelist, szGlobalSpaceless)) {
             bFound = true;
-        } else {
-            new szCurrentBadWord[32];
-            for (new i = 0; i < ArraySize(g_aBadWords); i++) {
-                ArrayGetString(g_aBadWords, i, szCurrentBadWord, charsmax(szCurrentBadWord));
-                new iLen = strlen(szCurrentBadWord);
-                if (iLen > 1 && szCurrentBadWord[iLen - 1] == '*') {
-                    szCurrentBadWord[iLen - 1] = '^0';
-                    if (iLen - 1 >= 3 && containi(szGlobalSpaceless, szCurrentBadWord) != -1) {
-                        bFound = true;
-                        break;
-                    }
-                } else {
-                    if (iLen >= 4 && containi(szGlobalSpaceless, szCurrentBadWord) != -1) {
-                        bFound = true;
-                        break;
-                    }
-                }
-            }
         }
     }
     
@@ -436,18 +435,8 @@ public cmd_Say(id) {
         CleanWord(szClean);
         if (szClean[0] == '^0') continue;
         
-        // --- Exact Whitelist (Beyaz Liste) ---
-        new bool:bIsWhitelisted = false;
-        for (new i = 0; i < ArraySize(g_aWhitelist); i++) {
-            new szWhite[32];
-            ArrayGetString(g_aWhitelist, i, szWhite, charsmax(szWhite));
-            if (equal(szClean, szWhite)) {
-                bIsWhitelisted = true;
-                break;
-            }
-        }
-        
-        if (bIsWhitelisted) {
+        // --- Exact Whitelist (Beyaz Liste) Trie O(1) ---
+        if (TrieKeyExists(g_tWhitelist, szClean)) {
             continue; // Beyaz listedeki kelime
         }
         
@@ -718,7 +707,9 @@ public cmd_ClearOffenses(id, level, cid) {
     get_user_authid(target, szAuthID, charsmax(szAuthID));
     get_user_ip(target, szIP, charsmax(szIP), 1);
     formatex(szData, charsmax(szData), "0 0 %d %d", g_iWarnDecayTimer[target], g_iOffenseDecayTimer[target]);
-    nvault_set(g_Vault, szAuthID, szData);
+    if (!is_steam_id_shared(szAuthID)) {
+        nvault_set(g_Vault, szAuthID, szData);
+    }
     nvault_set(g_Vault, szIP, szData);
     
     client_print_color(0, print_team_default, "%s^3%s^1, ^3%s ^1tarafindan ihlalleri sifirlandi.", AUTOGAG_TAG, szName, szAdminName);
