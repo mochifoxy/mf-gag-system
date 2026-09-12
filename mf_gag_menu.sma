@@ -74,7 +74,7 @@ public ShowPlayerMenu(id) {
     new szName[32], szTargetId[10], szItem[128];
     
     for (new target = 1; target <= get_maxplayers(); target++) {
-        if (!is_user_connected(target) || is_user_hltv(target))
+        if (!is_user_connected(target) || is_user_hltv(target) || is_user_bot(target))
             continue;
         
         get_user_name(target, szName, charsmax(szName));
@@ -448,7 +448,7 @@ public ShowUngagMenu(id) {
     new bool:bGaggedFound = false;
     
     for (new target = 1; target <= get_maxplayers(); target++) {
-        if (!is_user_connected(target) || is_user_hltv(target))
+        if (!is_user_connected(target) || is_user_hltv(target) || is_user_bot(target))
             continue;
         
         if (mfgag_is_gagged(target)) {
@@ -639,6 +639,7 @@ public Handler_ReasonMenu(id, menu, item) {
     if (target && is_user_connected(target)) {
         mfgag_set_gag(id, target, iTime, szData);
     }
+    g_MenuTarget[id] = 0;
     
     menu_destroy(menu);
     if (g_bFromUngag[id]) ShowUngagMenu(id);
@@ -652,7 +653,9 @@ public cmd_CustomGagReason(id) {
         return PLUGIN_HANDLED;
     }
     new szArg[64];
-    read_argv(1, szArg, charsmax(szArg));
+    read_args(szArg, charsmax(szArg));
+    remove_quotes(szArg);
+    trim(szArg);
     
     new target = find_player_by_userid(g_MenuTarget[id]);
     new iTime = g_MenuTime[id];
@@ -660,6 +663,7 @@ public cmd_CustomGagReason(id) {
     if (target && is_user_connected(target)) {
         mfgag_set_gag(id, target, iTime, szArg);
     }
+    g_MenuTarget[id] = 0;
     
     if (g_bFromUngag[id]) ShowUngagMenu(id);
     else ShowPlayerMenu(id);

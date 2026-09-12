@@ -15,6 +15,7 @@
 #define TASK_PRINT_GAG 3000
 
 new g_Vault;
+new g_VaultPerm;
 
 // Oyuncu verileri
 new bool:g_bIsGagged[65];
@@ -24,6 +25,7 @@ new g_szIP[65][32];
 new g_szGagReason[65][64];
 
 new Array:g_aCmdWhitelist;
+new g_pCvarAdminBypass;
 
 public plugin_natives() {
     register_native("mfgag_is_gagged", "native_is_gagged");
@@ -45,16 +47,26 @@ public plugin_init() {
         set_fail_state("nVault acilamadi! Eklenti durduruldu.");
     }
     
-    // 30 gunluk (86400 * 30 saniye) eski gag kayitlarini sil
+    g_VaultPerm = nvault_open("mf_gag_perm");
+    if (g_VaultPerm == INVALID_HANDLE) {
+        set_fail_state("nVault Perm acilamadi! Eklenti durduruldu.");
+    }
+    
+    // 30 gunluk (86400 * 30 saniye) eski gecici gag kayitlarini sil (Kalici cezalar asla budanmaz)
     nvault_prune(g_Vault, 0, get_systime() - 2592000);
     
     g_aCmdWhitelist = ArrayCreate(32);
     LoadCmdWhitelist();
+    
+    g_pCvarAdminBypass = create_cvar("amx_gag_admin_bypass", "0");
 }
 
 public plugin_end() {
     if (g_Vault != INVALID_HANDLE) {
         nvault_close(g_Vault);
+    }
+    if (g_VaultPerm != INVALID_HANDLE) {
+        nvault_close(g_VaultPerm);
     }
     
     ArrayDestroy(g_aCmdWhitelist);
@@ -99,13 +111,23 @@ public check_gag(task_id) {
     
     new szData[128], iTimestamp;
     new bool:bFound = false;
+    new bool:bIsPerm = false;
     
     copy(g_szAuthID[id], charsmax(g_szAuthID[]), szAuthID);
     get_user_ip(id, g_szIP[id], charsmax(g_szIP[]), 1);
     
     new bool:bIsShared = is_steam_id_shared(g_szAuthID[id]);
     
-    if (!bIsShared && nvault_lookup(g_Vault, g_szAuthID[id], szData, charsmax(szData), iTimestamp)) {
+    // Once kalici kasayi kontrol et (Prune korumali)
+    if (!bIsShared && nvault_lookup(g_VaultPerm, g_szAuthID[id], szData, charsmax(szData), iTimestamp)) {
+        bFound = true;
+        bIsPerm = true;
+    }
+    else if (nvault_lookup(g_VaultPerm, g_szIP[id], szData, charsmax(szData), iTimestamp)) {
+        bFound = true;
+        bIsPerm = true;
+    }
+    else if (!bIsShared && nvault_lookup(g_Vault, g_szAuthID[id], szData, charsmax(szData), iTimestamp)) {
         bFound = true;
     }
     else if (nvault_lookup(g_Vault, g_szIP[id], szData, charsmax(szData), iTimestamp)) {
@@ -123,7 +145,7 @@ public check_gag(task_id) {
             copy(szReason, charsmax(szReason), "Bilinmiyor");
         }
         
-        new iEnd = str_to_num(szEnd);
+        new iEnd = bIsPerm ? 0 : str_to_num(szEnd);
         new iCurrentTime = get_systime();
         
         if (iEnd > iCurrentTime || iEnd == 0) {
@@ -131,11 +153,13 @@ public check_gag(task_id) {
             g_iGagEnd[id] = iEnd;
             copy(g_szGagReason[id], charsmax(g_szGagReason[]), szReason);
             
-            // Amnesia Bug Fix: Kaydi yenile ki nvault_prune aktif cezalari silmesin
+            // Amnesia Bug Fix: Kaydi yenile ki aktif cezalari koru
             if (!bIsShared) {
-                nvault_touch(g_Vault, g_szAuthID[id]);
+                if (bIsPerm) nvault_touch(g_VaultPerm, g_szAuthID[id]);
+                else nvault_touch(g_Vault, g_szAuthID[id]);
             }
-            nvault_touch(g_Vault, g_szIP[id]);
+            if (bIsPerm) nvault_touch(g_VaultPerm, g_szIP[id]);
+            else nvault_touch(g_Vault, g_szIP[id]);
             
             if (iEnd > 0) {
                 new iRemaining = iEnd - iCurrentTime;
@@ -156,7 +180,7 @@ public check_gag(task_id) {
 
 public task_PrintGagJoin(task_id) {
     new id = task_id - TASK_PRINT_GAG;
-    if (!is_user_connected(id)) return;
+    if (!is_user_connected(id) || !g_bIsGagged[id]) return; // Madde 5 korumasi
     
     new szName[32];
     get_user_name(id, szName, charsmax(szName));
@@ -192,8 +216,10 @@ public task_GagExpired(task_id) {
 stock remove_gag_from_db(const szAuth[], const szIP[]) {
     if (!is_steam_id_shared(szAuth)) {
         nvault_remove(g_Vault, szAuth);
+        nvault_remove(g_VaultPerm, szAuth);
     }
     nvault_remove(g_Vault, szIP);
+    nvault_remove(g_VaultPerm, szIP);
 }
 
 LoadCmdWhitelist() {
@@ -246,8 +272,8 @@ public cmd_say(id) {
         
         // Gagli olsa bile kullanabilecegi guvenli komutlar
         if (szText[0] == '/' || szText[0] == '.') {
-            if (access(id, ADMIN_KICK)) {
-                return PLUGIN_CONTINUE; // Yetkili adminler susturulsa bile chat komutlarini (örn: /gagmenu, /ungag) kullanabilsin.
+            if (get_pcvar_num(g_pCvarAdminBypass) && access(id, ADMIN_KICK)) {
+                return PLUGIN_CONTINUE; // Cvar aktif ise yetkili adminler susturulsa bile chat komutlarini (örn: /gagmenu, /ungag) kullanabilsin.
             }
             new szCmd[32], szFirstWord[32];
             new bool:bAllowed = false;
@@ -300,8 +326,8 @@ public cmd_say_team(id) {
         }
         
         if (szText[0] == '/' || szText[0] == '.') {
-            if (access(id, ADMIN_KICK)) {
-                return PLUGIN_CONTINUE; // Yetkili adminler takım chatinden de komutları kullanabilsin
+            if (get_pcvar_num(g_pCvarAdminBypass) && access(id, ADMIN_KICK)) {
+                return PLUGIN_CONTINUE; // Cvar aktif ise yetkili adminler takım chatinden de komutları kullanabilsin
             }
             new szCmd[32], szFirstWord[32];
             new bool:bAllowed = false;
@@ -434,10 +460,23 @@ public bool:native_set_gag(plugin_id, num_params) {
     new szData[128];
     formatex(szData, charsmax(szData), "%d^^%s", iEnd, szReason);
     
-    if (!is_steam_id_shared(g_szAuthID[target_id])) {
-        nvault_set(g_Vault, g_szAuthID[target_id], szData);
+    if (minutes == 0) {
+        // Kalici ceza: g_VaultPerm'e kaydet, g_Vault'tan temizle
+        if (!is_steam_id_shared(g_szAuthID[target_id])) {
+            nvault_set(g_VaultPerm, g_szAuthID[target_id], szData);
+            nvault_remove(g_Vault, g_szAuthID[target_id]);
+        }
+        nvault_set(g_VaultPerm, g_szIP[target_id], szData);
+        nvault_remove(g_Vault, g_szIP[target_id]);
+    } else {
+        // Sureli ceza: g_Vault'a kaydet, g_VaultPerm'den temizle
+        if (!is_steam_id_shared(g_szAuthID[target_id])) {
+            nvault_set(g_Vault, g_szAuthID[target_id], szData);
+            nvault_remove(g_VaultPerm, g_szAuthID[target_id]);
+        }
+        nvault_set(g_Vault, g_szIP[target_id], szData);
+        nvault_remove(g_VaultPerm, g_szIP[target_id]);
     }
-    nvault_set(g_Vault, g_szIP[target_id], szData);
     
     new szTargetName[32], szAdminName[32], szAdminAuthID[35];
     get_user_name(target_id, szTargetName, charsmax(szTargetName));
@@ -450,21 +489,30 @@ public bool:native_set_gag(plugin_id, num_params) {
         get_user_authid(admin_id, szAdminAuthID, charsmax(szAdminAuthID));
     }
     
+    new szMsg[192];
     if (minutes == 0) {
-        client_print_color(0, print_team_default, "%s^3%s ^1yetkilisi, ^4%s ^1adli oyuncuyu ^3SINIRSIZ ^1sureyle gag'ladi. Sebep: ^3%s", GAG_TAG, szAdminName, szTargetName, szReason);
+        formatex(szMsg, charsmax(szMsg), "%s^3%s ^1yetkilisi, ^4%s ^1adli oyuncuyu ^3SINIRSIZ ^1sureyle gag'ladi.", GAG_TAG, szAdminName, szTargetName);
         log_to_file("mf_gag.log", "Yetkili: %s (%s) | Hedef: %s (%s) | Sure: Sinirsiz | Sebep: %s", szAdminName, szAdminAuthID, szTargetName, g_szAuthID[target_id], szReason);
     } else if (bFromInfiniteToTimed) {
-        client_print_color(0, print_team_default, "%s^3%s ^1yetkilisi, ^4%s ^1adli oyuncunun ^3SINIRSIZ ^1gag cezasini ^3%d dakika ^1olarak guncelledi. Sebep: ^3%s", GAG_TAG, szAdminName, szTargetName, minutes, szReason);
+        formatex(szMsg, charsmax(szMsg), "%s^3%s ^1yetkilisi, ^4%s ^1adli oyuncunun ^3SINIRSIZ ^1gag cezasini ^3%d dakika ^1olarak guncelledi.", GAG_TAG, szAdminName, szTargetName, minutes);
         log_to_file("mf_gag.log", "Yetkili: %s (%s) | Hedef: %s (%s) | Sure: Sinirsizdan %d Dakikaya Guncellendi | Sebep: %s", szAdminName, szAdminAuthID, szTargetName, g_szAuthID[target_id], minutes, szReason);
     } else if (bIsExtension) {
-        client_print_color(0, print_team_default, "%s^3%s ^1yetkilisi, ^4%s ^1adli oyuncunun gag suresini ^3%d dakika ^1uzatti. Sebep: ^3%s", GAG_TAG, szAdminName, szTargetName, iAddedMinutes, szReason);
+        formatex(szMsg, charsmax(szMsg), "%s^3%s ^1yetkilisi, ^4%s ^1adli oyuncunun gag suresini ^3%d dakika ^1uzatti.", GAG_TAG, szAdminName, szTargetName, iAddedMinutes);
         log_to_file("mf_gag.log", "Yetkili: %s (%s) | Hedef: %s (%s) | Sure: %d Dakika Uzatildi | Sebep: %s", szAdminName, szAdminAuthID, szTargetName, g_szAuthID[target_id], iAddedMinutes, szReason);
     } else if (bIsAbsoluteUpdate) {
-        client_print_color(0, print_team_default, "%s^3%s ^1yetkilisi, ^4%s ^1adli oyuncunun gag suresini ^3%d dakika ^1olarak guncelledi. Sebep: ^3%s", GAG_TAG, szAdminName, szTargetName, minutes, szReason);
+        formatex(szMsg, charsmax(szMsg), "%s^3%s ^1yetkilisi, ^4%s ^1adli oyuncunun gag suresini ^3%d dakika ^1olarak guncelledi.", GAG_TAG, szAdminName, szTargetName, minutes);
         log_to_file("mf_gag.log", "Yetkili: %s (%s) | Hedef: %s (%s) | Sure: %d Dakikaya Guncellendi | Sebep: %s", szAdminName, szAdminAuthID, szTargetName, g_szAuthID[target_id], minutes, szReason);
     } else {
-        client_print_color(0, print_team_default, "%s^3%s ^1yetkilisi, ^4%s ^1adli oyuncuyu ^3%d dakika ^1sureyle gag'ladi. Sebep: ^3%s", GAG_TAG, szAdminName, szTargetName, minutes, szReason);
+        formatex(szMsg, charsmax(szMsg), "%s^3%s ^1yetkilisi, ^4%s ^1adli oyuncuyu ^3%d dakika ^1sureyle gag'ladi.", GAG_TAG, szAdminName, szTargetName, minutes);
         log_to_file("mf_gag.log", "Yetkili: %s (%s) | Hedef: %s (%s) | Sure: %d Dakika | Sebep: %s", szAdminName, szAdminAuthID, szTargetName, g_szAuthID[target_id], minutes, szReason);
+    }
+    
+    // 192 byte SayText tampon korumasi: Tek satira sigiyorsa tek satirda, sigmiyorsa 2 satirda tam bas (Asla kirpma yapmaz)
+    if (strlen(szMsg) + strlen(szReason) + 12 < 185) {
+        client_print_color(0, print_team_default, "%s Sebep: ^3%s", szMsg, szReason);
+    } else {
+        client_print_color(0, print_team_default, "%s", szMsg);
+        client_print_color(0, print_team_default, "%sSebep: ^3%s", GAG_TAG, szReason);
     }
     
     return true;
@@ -482,6 +530,7 @@ public bool:native_remove_gag(plugin_id, num_params) {
     if (!g_bIsGagged[target_id]) return false;
     
     remove_task(target_id + TASK_GAG_EXPIRE);
+    remove_task(target_id + TASK_PRINT_GAG); // Madde 5 korumasi
     g_bIsGagged[target_id] = false;
     g_iGagEnd[target_id] = 0;
     

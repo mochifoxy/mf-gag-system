@@ -58,7 +58,7 @@ public plugin_init() {
     register_concmd("amx_ihlaltemizle", "cmd_ClearOffenses", ADMIN_RCON, "<isim> - Oyuncunun ihlallerini sifirlar");
     
     g_pCvarEnabled = create_cvar("amx_autogag", "1");
-    g_pCvarFloodTime = create_cvar("amx_autogag_flood_time", "2.0");
+    g_pCvarFloodTime = create_cvar("amx_autogag_flood_time", "0.75");
     g_pCvarFloodLimit = create_cvar("amx_autogag_flood_limit", "3");
     g_pCvarDecayTime = create_cvar("amx_autogag_decay_time", "3600"); // 3600 saniye = 1 saat
     g_pCvarWarnDecayTime = create_cvar("amx_autogag_warn_decay_time", "900"); // 15 Dakika
@@ -104,8 +104,9 @@ public plugin_end() {
                     if (g_Vault) {
                         if (!is_steam_id_shared(szAuthID)) {
                             nvault_set(g_Vault, szAuthID, szData);
+                        } else {
+                            nvault_set(g_Vault, szIP, szData);
                         }
-                        nvault_set(g_Vault, szIP, szData);
                     }
                 }
             }
@@ -130,8 +131,9 @@ public client_disconnected(id) {
             formatex(szData, charsmax(szData), "%d %d %d %d", g_iOffenses[id], g_iWarnings[id], g_iWarnDecayTimer[id], g_iOffenseDecayTimer[id]);
             if (!is_steam_id_shared(szAuthID)) {
                 nvault_set(g_Vault, szAuthID, szData);
+            } else {
+                nvault_set(g_Vault, szIP, szData);
             }
-            nvault_set(g_Vault, szIP, szData);
         }
     }
     
@@ -232,13 +234,24 @@ public load_offenses(taskid) {
         }
     }
     
-    g_iOffenses[id] = max(iCountID, iCountIP) + g_iOffenses[id];
-    g_iWarnings[id] = max(iWarningsID, iWarningsIP) + g_iWarnings[id];
-    if (g_iWarnDecayTimer[id] == 0) {
-        g_iWarnDecayTimer[id] = max(iWarnTimeID, iWarnTimeIP);
-    }
-    if (g_iOffenseDecayTimer[id] == 0) {
-        g_iOffenseDecayTimer[id] = max(iOffTimeID, iOffTimeIP);
+    if (!bIsShared) {
+        g_iOffenses[id] = iCountID + g_iOffenses[id];
+        g_iWarnings[id] = iWarningsID + g_iWarnings[id];
+        if (g_iWarnDecayTimer[id] == 0) {
+            g_iWarnDecayTimer[id] = iWarnTimeID;
+        }
+        if (g_iOffenseDecayTimer[id] == 0) {
+            g_iOffenseDecayTimer[id] = iOffTimeID;
+        }
+    } else {
+        g_iOffenses[id] = iCountIP + g_iOffenses[id];
+        g_iWarnings[id] = iWarningsIP + g_iWarnings[id];
+        if (g_iWarnDecayTimer[id] == 0) {
+            g_iWarnDecayTimer[id] = iWarnTimeIP;
+        }
+        if (g_iOffenseDecayTimer[id] == 0) {
+            g_iOffenseDecayTimer[id] = iOffTimeIP;
+        }
     }
 }
 
@@ -414,51 +427,58 @@ public cmd_Say(id) {
     
     // --- Flood Korumasi ---
     new Float:flCurrentTime = get_gametime();
-    new Float:flDiff = flCurrentTime - g_flLastTalkTime[id];
-    g_flLastTalkTime[id] = flCurrentTime;
+    new Float:flFloodTime = get_pcvar_float(g_pCvarFloodTime);
     
-    if (flDiff < get_pcvar_float(g_pCvarFloodTime)) {
-        g_iMessageCount[id]++;
-        if (g_iMessageCount[id] >= get_pcvar_num(g_pCvarFloodLimit)) {
-            g_iWarnings[id]++;
-            g_iWarnDecayTimer[id] = get_systime();
+    if (flFloodTime > 0.0) {
+        new Float:flDiff = flCurrentTime - g_flLastTalkTime[id];
+        g_flLastTalkTime[id] = flCurrentTime;
+        
+        if (flDiff < flFloodTime) {
+            g_iMessageCount[id]++;
             
-            client_print_color(id, print_team_default, "%sFlood yaptiginiz icin uyari aldiniz! (%d/%d)", AUTOGAG_TAG, g_iWarnings[id], get_pcvar_num(g_pCvarWarnLimit));
-            
-            // Tek bir bind basımında (aynı anda gelen paketlerde) arka arkaya uyarı alıp anında ceza yememesi için sayaç sıfırlanıyor
-            g_iMessageCount[id] = 0;
-            
-            if (g_iWarnings[id] >= get_pcvar_num(g_pCvarWarnLimit)) {
-                g_iOffenses[id]++;
-                g_iOffenseDecayTimer[id] = get_systime();
+            new iFloodLimit = get_pcvar_num(g_pCvarFloodLimit);
+            if (g_iMessageCount[id] >= iFloodLimit) {
+                g_iWarnings[id]++;
+                g_iWarnDecayTimer[id] = get_systime();
+                g_iMessageCount[id] = 0;
                 
-                new iGagTime = 0;
-                new szReason[64];
+                new iWarnLimit = get_pcvar_num(g_pCvarWarnLimit);
+                client_print_color(id, print_team_default, "%sFlood yaptiginiz icin uyari aldiniz! (%d/%d)", AUTOGAG_TAG, g_iWarnings[id], iWarnLimit);
                 
-                if (g_iOffenses[id] >= 5) {
-                    iGagTime = 0; // 0 = Kalici / Suresiz Gag
-                    client_print_color(id, print_team_default, "%sFlood yaptiginiz icin ^3kalici (suresiz) ^1gaglandiniz.", AUTOGAG_TAG);
-                    formatex(szReason, charsmax(szReason), "Otomatik Gag (Flood 5+ Ihlal - Kalici)");
-                    log_amx("[AutoGag] %s flood nedeniyle KALICI olarak gaglandi. Ihlal: %d", szName, g_iOffenses[id]);
-                } else {
-                    new iDefaultTime = get_pcvar_num(g_pCvarDefaultTime);
-                    new iShift = min(g_iOffenses[id] - 1, 14);
-                    iGagTime = iDefaultTime * (1 << iShift);
-                    if (iGagTime > 43200) iGagTime = 43200; // Max 30 days
+                if (g_iWarnings[id] >= iWarnLimit) {
+                    g_iOffenses[id]++;
+                    g_iOffenseDecayTimer[id] = get_systime();
                     
-                    client_print_color(id, print_team_default, "%sFlood yaptiginiz icin ^3%d dakika ^1gaglandiniz.", AUTOGAG_TAG, iGagTime);
-                    formatex(szReason, charsmax(szReason), "Otomatik Gag (Flood %d. Ihlal)", g_iOffenses[id]);
-                    log_amx("[AutoGag] %s flood nedeniyle otomatik gaglandi. Sure: %d Dk, Ihlal: %d", szName, iGagTime, g_iOffenses[id]);
+                    new iGagTime = 0;
+                    new szReason[64];
+                    
+                    if (g_iOffenses[id] >= 5) {
+                        iGagTime = 0; // 0 = Kalici / Suresiz Gag
+                        client_print_color(id, print_team_default, "%sFlood yaptiginiz icin ^3kalici (suresiz) ^1gaglandiniz.", AUTOGAG_TAG);
+                        formatex(szReason, charsmax(szReason), "Otomatik Gag (Flood 5+ Ihlal - Kalici)");
+                        log_amx("[AutoGag] %s flood nedeniyle KALICI olarak gaglandi. Ihlal: %d", szName, g_iOffenses[id]);
+                    } else {
+                        new iDefaultTime = get_pcvar_num(g_pCvarDefaultTime);
+                        new iShift = min(g_iOffenses[id] - 1, 14);
+                        iGagTime = iDefaultTime * (1 << iShift);
+                        if (iGagTime > 43200) iGagTime = 43200; // Max 30 days
+                        
+                        client_print_color(id, print_team_default, "%sFlood yaptiginiz icin ^3%d dakika ^1gaglandiniz.", AUTOGAG_TAG, iGagTime);
+                        formatex(szReason, charsmax(szReason), "Otomatik Gag (Flood %d. Ihlal)", g_iOffenses[id]);
+                        log_amx("[AutoGag] %s flood nedeniyle otomatik gaglandi. Sure: %d Dk, Ihlal: %d", szName, iGagTime, g_iOffenses[id]);
+                    }
+                    
+                    mfgag_set_gag(0, id, iGagTime, szReason);
+                    g_iWarnings[id] = 0;
                 }
-                
-                mfgag_set_gag(0, id, iGagTime, szReason);
-                g_iWarnings[id] = 0;
+            } else if (g_iMessageCount[id] == 1) {
+                client_print_color(id, print_team_default, "%sCok hizli yaziyorsunuz, lutfen bekleyin!", AUTOGAG_TAG);
             }
             
             return PLUGIN_HANDLED;
+        } else {
+            g_iMessageCount[id] = 0;
         }
-    } else {
-        g_iMessageCount[id] = 1;
     }
     // ----------------------
     
@@ -659,7 +679,7 @@ public cmd_AddWord(id, level, cid) {
     
     new szFilePath[128];
     get_configsdir(szFilePath, charsmax(szFilePath));
-    format(szFilePath, charsmax(szFilePath), "%s/kufurler.txt", szFilePath);
+    add(szFilePath, charsmax(szFilePath), "/kufurler.txt");
     
     if (!file_exists(szFilePath)) {
         formatex(szFilePath, charsmax(szFilePath), "kufurler.txt");
@@ -691,31 +711,43 @@ public cmd_DelWord(id, level, cid) {
     new szClean[32];
     copy(szClean, charsmax(szClean), szWord);
     
-    new bool:bHasWildcard = false;
+    new bool:bLeadWild = (szClean[0] == '*');
+    new bool:bTrailWild = false;
     new iLen = strlen(szClean);
     if (iLen > 1 && szClean[iLen - 1] == '*') {
-        bHasWildcard = true;
+        bTrailWild = true;
         szClean[iLen - 1] = '^0';
+    }
+    if (bLeadWild) {
+        copy(szClean, charsmax(szClean), szClean[1]);
     }
     
     CleanWord(szClean);
     
-    if (bHasWildcard) {
-        add(szClean, charsmax(szClean), "*");
+    new szFormattedEntry[64];
+    if (bLeadWild && bTrailWild) {
+        formatex(szFormattedEntry, charsmax(szFormattedEntry), "*%s*", szClean);
+    } else if (bLeadWild) {
+        formatex(szFormattedEntry, charsmax(szFormattedEntry), "*%s", szClean);
+    } else if (bTrailWild) {
+        formatex(szFormattedEntry, charsmax(szFormattedEntry), "%s*", szClean);
+    } else {
+        copy(szFormattedEntry, charsmax(szFormattedEntry), szClean);
     }
     
+    new bool:bHasWildcard = (bLeadWild || bTrailWild);
     new bool:bExists = false;
     if (bHasWildcard) {
         new szTemp[32];
         for (new i = 0; i < ArraySize(g_aBadWords); i++) {
             ArrayGetString(g_aBadWords, i, szTemp, charsmax(szTemp));
-            if (equal(szTemp, szClean)) {
+            if (equal(szTemp, szFormattedEntry)) {
                 bExists = true;
                 break;
             }
         }
     } else {
-        bExists = TrieKeyExists(g_tBadWords, szClean);
+        bExists = TrieKeyExists(g_tBadWords, szFormattedEntry);
     }
     
     if (!bExists) {
@@ -727,18 +759,18 @@ public cmd_DelWord(id, level, cid) {
         new szTemp[32];
         for (new i = 0; i < ArraySize(g_aBadWords); i++) {
             ArrayGetString(g_aBadWords, i, szTemp, charsmax(szTemp));
-            if (equal(szTemp, szClean)) {
+            if (equal(szTemp, szFormattedEntry)) {
                 ArrayDeleteItem(g_aBadWords, i);
                 break;
             }
         }
     } else {
-        TrieDeleteKey(g_tBadWords, szClean);
+        TrieDeleteKey(g_tBadWords, szFormattedEntry);
     }
     
     new szFilePath[128];
     get_configsdir(szFilePath, charsmax(szFilePath));
-    format(szFilePath, charsmax(szFilePath), "%s/kufurler.txt", szFilePath);
+    add(szFilePath, charsmax(szFilePath), "/kufurler.txt");
     
     if (!file_exists(szFilePath)) {
         formatex(szFilePath, charsmax(szFilePath), "kufurler.txt");
@@ -757,20 +789,30 @@ public cmd_DelWord(id, level, cid) {
             new szCleanLine[64];
             copy(szCleanLine, charsmax(szCleanLine), szLine);
             
-            new bool:bLineHasWildcard = false;
+            new bool:bLineLeadWild = (szCleanLine[0] == '*');
+            new bool:bLineTrailWild = false;
             new iLineLen = strlen(szCleanLine);
             if (iLineLen > 1 && szCleanLine[iLineLen - 1] == '*') {
-                bLineHasWildcard = true;
+                bLineTrailWild = true;
                 szCleanLine[iLineLen - 1] = '^0';
             }
-            
+            if (bLineLeadWild) {
+                copy(szCleanLine, charsmax(szCleanLine), szCleanLine[1]);
+            }
             CleanWord(szCleanLine);
             
-            if (bLineHasWildcard) {
-                add(szCleanLine, charsmax(szCleanLine), "*");
+            new szFormattedLine[64];
+            if (bLineLeadWild && bLineTrailWild) {
+                formatex(szFormattedLine, charsmax(szFormattedLine), "*%s*", szCleanLine);
+            } else if (bLineLeadWild) {
+                formatex(szFormattedLine, charsmax(szFormattedLine), "*%s", szCleanLine);
+            } else if (bLineTrailWild) {
+                formatex(szFormattedLine, charsmax(szFormattedLine), "%s*", szCleanLine);
+            } else {
+                copy(szFormattedLine, charsmax(szFormattedLine), szCleanLine);
             }
             
-            if (!equal(szCleanLine, szClean)) {
+            if (!equal(szFormattedLine, szFormattedEntry)) {
                 ArrayPushString(aLines, szLine);
             }
         }
@@ -785,12 +827,12 @@ public cmd_DelWord(id, level, cid) {
             }
             fclose(f);
             LoadWords();
-            console_print(id, "[AutoGag] '%s' kelimesi basariyla silindi.", szWord);
+            console_print(id, "[AutoGag] '%s' kurali basariyla silindi.", szFormattedEntry);
         } else {
             console_print(id, "[AutoGag] Dosya yazilamadi!");
         }
     } else {
-        console_print(id, "[AutoGag] Dosya okunamadi!");
+        console_print(id, "[AutoGag] Dosya acilamadi!");
     }
     
     ArrayDestroy(aLines);
@@ -823,8 +865,9 @@ public cmd_ClearOffenses(id, level, cid) {
     formatex(szData, charsmax(szData), "0 0 %d %d", g_iWarnDecayTimer[target], g_iOffenseDecayTimer[target]);
     if (!is_steam_id_shared(szAuthID)) {
         nvault_set(g_Vault, szAuthID, szData);
+    } else {
+        nvault_set(g_Vault, szIP, szData);
     }
-    nvault_set(g_Vault, szIP, szData);
     
     client_print_color(0, print_team_default, "%s^3%s^1, ^3%s ^1tarafindan ihlalleri sifirlandi.", AUTOGAG_TAG, szName, szAdminName);
     log_amx("[AutoGag] %s tarafindan %s ihlalleri sifirlandi.", szAdminName, szName);
@@ -997,8 +1040,9 @@ bool:CheckWordMatch(const szWord[]) {
                 if (contain(szClean, szRoot) != -1) {
                     return true;
                 }
-                // Serbest baslangicli alt-dizi (a.n.s.k.m, s-k-m)
-                if (ContainsSubsequence(szClean, szRoot, (rLen >= 4 ? 2 : 1), tLen - rLen)) {
+                // Serbest baslangicli alt-dizi (a.n.s.k.m) - Sadece 4 ve daha uzun koklerde calisir.
+                // 3 harfli kisaltmalarda (skm, amk) araya harf serbestisi verilmez, boylece "sekmiyor", "sikma", "sokma" gibi masum kelimeler cezalandirilmaz!
+                if (rLen >= 4 && ContainsSubsequence(szClean, szRoot, 2, tLen - rLen)) {
                     return true;
                 }
             }
@@ -1009,9 +1053,22 @@ bool:CheckWordMatch(const szWord[]) {
                 }
             }
             case MATCH_EXACT: {
-                // 2-3 harfli kisaltmalar icin kisa araya harf bypass'i (oxc, o.c, axmxk)
-                if (rLen == 2 && tLen <= 4 && szClean[0] == szRoot[0] && szClean[tLen - 1] == szRoot[1]) {
-                    return true;
+                // 2-3 harfli kisaltmalar icin araya harf bypass'i (oxc, o.c, axmxk)
+                if (rLen == 2) {
+                    if (equal(szClean, szRoot)) return true;
+                    // Eger 3 veya 4 harfli ise aradaki harflerin sadece kok harfi veya ayirici/bypass olmasini kontrol et
+                    // Masum kelimelerin ("oruc", "otoc" vb.) filtrelenmesini onler!
+                    if (tLen <= 4 && szClean[0] == szRoot[0] && szClean[tLen - 1] == szRoot[1]) {
+                        new bool:bValidBypass = true;
+                        for (new k = 1; k < tLen - 1; k++) {
+                            new c = szClean[k];
+                            if (c != szRoot[0] && c != szRoot[1] && c != 'x' && c != 'X' && c != '_') {
+                                bValidBypass = false;
+                                break;
+                            }
+                        }
+                        if (bValidBypass) return true;
+                    }
                 } else if (rLen >= 3 && tLen <= rLen + 2) {
                     if (ContainsSubsequence(szClean, szRoot, 1, 0)) {
                         return true;

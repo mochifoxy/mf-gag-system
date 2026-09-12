@@ -71,6 +71,7 @@ stock bool:is_steam_id_shared(const szAuthID[]) {
         || equal(szAuthID, "VALVE_ID_PENDING") 
         || equal(szAuthID, "STEAM_ID_LAN") 
         || equal(szAuthID, "VALVE_ID_LAN")
+        || equal(szAuthID, "BOT")
         || containi(szAuthID, "LAN") != -1) {
         return true;
     }

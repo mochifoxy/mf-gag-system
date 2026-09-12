@@ -22,3 +22,8 @@ sirk
 sirke
 sanane
 sana
+sekme
+sekmesi
+sekmeyen
+oruc
+oruç

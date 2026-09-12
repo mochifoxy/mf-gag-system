@@ -172,11 +172,12 @@ Susturulan oyuncuların chatte engellenmeden kullanabilmesini istediğiniz chat 
 
 | CVAR | Varsayılan | Açıklama |
 |---|---|---|
+| `amx_gag_admin_bypass` | `0` | Gaglı yetkili komut muafiyeti (`0`: Yetkililer de `gag_whitelist.ini` listesine tabidir, `1`: Yetkililer tüm `/` ve `.` komutlarını serbestçe çalıştırabilir) |
 | `amx_autogag` | `1` | AutoGag sistemini açar/kapatır |
 | `amx_autogag_default_time` | `15` | Temel gag süresi (dakika) |
 | `amx_autogag_warning_limit` | `3` | Gag atılmadan önceki uyarı sayısı |
-| `amx_autogag_flood_time` | `2.0` | Flood sayılacak mesaj aralığı (saniye) |
-| `amx_autogag_flood_limit` | `3` | Art arda kaç hızlı mesajın flood sayılacağı |
+| `amx_autogag_flood_time` | `0.75` | Flood eşik süresi (saniye). 0.75 saniyeden hızlı mesajlar engellenir |
+| `amx_autogag_flood_limit` | `3` | Art arda kaç hızlı mesaj girişiminde uyarı verileceği |
 | `amx_autogag_immunity` | `0` | Yetkili muafiyeti (`0`: Yetkililer de denetlenir, `1`: Yetkililer muaf) |
 | `amx_autogag_decay_time` | `3600` | Sicil temizleme süresi (saniye). `0` = kapalı |
 | `amx_autogag_warn_decay_time` | `900` | Uyarı silinme süresi (saniye). `0` = kapalı |
