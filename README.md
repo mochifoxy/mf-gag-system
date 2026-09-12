@@ -21,6 +21,18 @@ Eklentinin sorunsuz derlenebilmesi ve çalışabilmesi için aşağıdaki altyap
 
 ---
 
+## 🚀 v1.2 Sürümünden v1.5'e Geçişte Yapılan Düzeltmeler & Eklemeler
+
+*   **🌐 Tam Kapsamlı Glob / Wildcard Desteği:** v1.2'de yalnızca kelime sonuna yıldız konulabiliyorken (`kelime*`), v1.5 ile birlikte çift taraflı içerme kuralı (`*kelime*` ve `*kelime`) eklendi. Artık `*skm*` veya `*amk*` yazarak kelimenin önüne/arkasına eklenen tüm türevler tek kuralda yakalanır.
+*   **🛡️ Subsequence (Araya Harf Sıkıştırma) Motoru:** v1.2'deki harf dönüştürmeyi aşmak için araya yabancı harfler sokularak yapılan (`s a i k`, `siokerler`, `s x k`) akıllı bypass girişimleri yeni alt-dizi algoritmasıyla engellendi.
+*   **📈 Kalıcı (Süresiz) Gag Sistemi:** v1.2'de süre yalnızca katlanıyordu; v1.5'te 5. ihlale ulaşan iflah olmaz oyunculara doğrudan **KALICI (Süresiz)** gag atılması sağlandı.
+*   **👥 64-Slot ReHLDS Altyapısı:** v1.2'deki 32 kişilik bellek sınırları 64-slot sunuculara uyumlu hale getirilerek bellek taşması (stack corruption) çökmeleri önlendi.
+*   **🔒 Non-Steam Oyuncu İzolasyonu:** Non-Steam oyuncuların paylaştığı `VALVE_ID_LAN` gibi ortak ID'lerin çakışması engellendi; cezalar IP üzerinden tutularak masum oyuncuların etkilenmesi önlendi.
+*   **💬 Tırnaklı İsim Parser Düzeltmesi:** Chat üzerinden tırnaklı ve boşluklu isimlere gag atarken (`/gag "Deneme Queen" 15` veya `/gag 'Deneme Queen' 15`) oluşan isim bölünme hatası `read_args` ve otomatik tırnak normalizasyonu ile tamamen giderildi.
+*   **👑 Yetkili Dokunulmazlık CVAR'ı:** `amx_autogag_immunity` ayarı eklenerek yetkililerin filtreden muaf tutulabilmesi seçeneğe bağlandı.
+
+---
+
 ## ✨ Özellikler
 
 ### 🛡️ Genel Gag Sistemi
@@ -53,7 +65,7 @@ Eklentinin sorunsuz derlenebilmesi ve çalışabilmesi için aşağıdaki altyap
 
 ### 🔒 Güvenlik & Stabilizasyon Yamaları
 *   **👥 Non-Steam Çakışma Önleme (IP-Only Fallback):** Sunucudaki Non-Steam oyuncuların kullandığı ortak/generic Steam ID'ler (`VALVE_ID_LAN`, `STEAM_ID_LAN`, `STEAM_ID_PENDING` vb.) tespit edilerek nVault veritabanı işlemlerinde es geçilir. Cezaları sadece benzersiz IP adresleri üzerinden yönetilerek masum oyuncuların zincirleme cezalandırılması engellenmiştir.
-*   **💬 Chat Komut Parser Düzeltmesi:** Chat üzerinden boşluklu isimleri tırnak içinde susturmak isterken (`/gag "Mochi Foxy" 10`) parser'ın tırnakları erken silerek ismi yanlış bölmesi hatası giderilmiştir. `read_argv(1)` kullanılarak tırnak yapısı korunmuş ve başarılı parse edilmesi sağlanmıştır.
+*   **💬 Chat Komut Parser Düzeltmesi:** Chat üzerinden boşluklu ve tırnaklı isimlere gag atarken (`/gag "Deneme Queen" 15` veya `/gag 'Deneme Queen' 15`) parser'ın ismi yanlış bölmesi hatası giderilmiştir. Hem tek tırnak (`'`) hem de çift tırnak (`"`) tam desteklenir.
 *   **🧱 Stack Corruption Önleme:** Menülerdeki `get_players` kullanımı ve yerel `players[32]` tampon dizileri tamamen kaldırılarak yerine `1`'den `get_maxplayers()`'a kadar güvenli manuel döngüler yazılmıştır. Böylece 32'den fazla oyuncu olduğunda oluşabilecek stack bozulma çökme riski sıfırlanmıştır.
 *   **🛡️ Admin Dokunulmazlığı:** `amx_autogag_immunity` CVAR'ı ile yetkililerin otomatik filtreye takılıp takılmayacağı belirlenir (Varsayılan `0` yapılarak yetkililerin de sistemi test edebilmesi sağlanmıştır).
 *   **Zaman Makinesi Açığı Kapatıldı:** Oyuncu küfür ettiğinde af süresi dürüstçe baştan başlar.
