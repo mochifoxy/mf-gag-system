@@ -22,6 +22,3 @@ sirk
 sirke
 sanane
 sana
-kazanan
-inanan
-dayanan

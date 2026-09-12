@@ -1,2 +1,4 @@
 backup/ 
 *.amxx
+/v1_2_fix_gag
+*.zip

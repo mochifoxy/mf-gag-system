@@ -48,11 +48,14 @@ stock argparse(const input[], pos, output[], len) {
     new i = pos, outLen = 0;
     while (input[i] == ' ' || input[i] == '^t') i++;
     if (input[i] == '^0') return -1;
-    new bool:inQuotes = false;
-    if (input[i] == '"') { inQuotes = true; i++; }
+    new quoteChar = 0;
+    if (input[i] == '"' || input[i] == 39 || input[i] == 96 || input[i] == 180 || input[i] == 145 || input[i] == 146) {
+        quoteChar = input[i];
+        i++;
+    }
     while (input[i] != '^0') {
-        if (inQuotes && input[i] == '"') { i++; break; }
-        if (!inQuotes && (input[i] == ' ' || input[i] == '^t')) break;
+        if (quoteChar != 0 && (input[i] == quoteChar || input[i] == '"' || input[i] == 39 || input[i] == 96 || input[i] == 180)) { i++; break; }
+        if (quoteChar == 0 && (input[i] == ' ' || input[i] == '^t')) break;
         if (outLen < len) output[outLen++] = input[i];
         i++;
     }

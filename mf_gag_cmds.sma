@@ -28,6 +28,27 @@ public plugin_init() {
     register_clcmd("say_team", "cmd_say");
 }
 
+stock bool:is_quote_char(c) {
+    return (c == '"' || c == 39 || c == 96 || c == 180 || c == 145 || c == 146);
+}
+
+stock clean_param_quotes(szStr[]) {
+    trim(szStr);
+    remove_quotes(szStr);
+    new l = strlen(szStr);
+    while (l >= 2 && is_quote_char(szStr[0]) && is_quote_char(szStr[l - 1])) {
+        szStr[l - 1] = '^0';
+        new i = 0;
+        while (szStr[i + 1] != '^0') {
+            szStr[i] = szStr[i + 1];
+            i++;
+        }
+        szStr[i] = '^0';
+        trim(szStr);
+        l = strlen(szStr);
+    }
+}
+
 public cmd_gag(id, level, cid) {
     if (!cmd_access(id, level, cid, 3))
         return PLUGIN_HANDLED;
@@ -36,6 +57,10 @@ public cmd_gag(id, level, cid) {
     read_argv(1, szArg1, charsmax(szArg1));
     read_argv(2, szArg2, charsmax(szArg2));
     read_argv(3, szArg3, charsmax(szArg3));
+    
+    clean_param_quotes(szArg1);
+    clean_param_quotes(szArg2);
+    clean_param_quotes(szArg3);
     
     new target = cmd_target(id, szArg1, CMDTARGET_OBEY_IMMUNITY | CMDTARGET_ALLOW_SELF);
     if (!target) return PLUGIN_HANDLED;
@@ -73,6 +98,7 @@ public cmd_ungag(id, level, cid) {
         
     new szArg1[32];
     read_argv(1, szArg1, charsmax(szArg1));
+    clean_param_quotes(szArg1);
     
     new target = cmd_target(id, szArg1, CMDTARGET_ALLOW_SELF);
     if (!target) return PLUGIN_HANDLED;
@@ -88,9 +114,32 @@ public cmd_ungag(id, level, cid) {
 }
 
 public cmd_say(id) {
-    new szText[128];
-    read_argv(1, szText, charsmax(szText));
+    new szText[192];
+    read_args(szText, charsmax(szText));
     trim(szText);
+    remove_quotes(szText);
+    trim(szText);
+    
+    // Bazi istemciler cift kat tirnak gonderir
+    if (szText[0] == '"' && szText[strlen(szText) - 1] == '"') {
+        remove_quotes(szText);
+        trim(szText);
+    }
+    
+    // Eger komutla baslamiyorsa devam et
+    if (szText[0] != '/') return PLUGIN_CONTINUE;
+    
+    // Escape karakterlerini temizle
+    replace_all(szText, charsmax(szText), "\^"", "^"");
+    replace_all(szText, charsmax(szText), "\'", "^"");
+    
+    // Tum tek tirnak, kesme ve aksan varyasyonlarini cift tirnaga normalize et
+    for (new i = 0; szText[i] != '^0'; i++) {
+        new c = szText[i];
+        if (c == 39 || c == 96 || c == 180 || c == 145 || c == 146) {
+            szText[i] = '"';
+        }
+    }
     
     new szCmd[16], szTarget[32], szTime[32], szReason[64];
     new iPos = 0;
@@ -98,13 +147,12 @@ public cmd_say(id) {
     if (iPos != -1) iPos = argparse(szText, iPos, szTarget, charsmax(szTarget));
     if (iPos != -1) iPos = argparse(szText, iPos, szTime, charsmax(szTime));
     
-    remove_quotes(szTarget);
-    remove_quotes(szTime);
+    clean_param_quotes(szTarget);
+    clean_param_quotes(szTime);
     
     if (iPos != -1) {
         copy(szReason, charsmax(szReason), szText[iPos]);
-        trim(szReason);
-        remove_quotes(szReason);
+        clean_param_quotes(szReason);
     } else {
         szReason[0] = '^0';
     }
