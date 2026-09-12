@@ -1,0 +1,79 @@
+// Yasakli Kelimeler Veritabani
+// ==============================================================================
+// Kurallar (Standart Glob / Wildcard Sistemi):
+// kelime    -> Sadece tam eslesme (Orn: oc, aq)
+// kelime*   -> Bu kelimeyle baslayanlar (Orn: sik* -> sikerim, siokerler, siktir)
+// *kelime*  -> Kelimenin neresinde gecerse gecsin yakala! (Orn: *skm* -> anskm, anaskm; *siktir* -> hasiktir; *amk* -> yohamk)
+// *kelime   -> Bu kelimeyle bitenler
+// ==============================================================================
+
+// Tam Eslesmeler (Kisaltmalar)
+oc
+oç
+aq
+
+// On-Ek Eslesmeleri (Kelimeler ve Kokler)
+sik*
+sikim*
+sikem*
+sikey*
+got*
+göt*
+anani*
+ananı*
+bacini*
+bacını*
+sulaleni*
+sülaleni*
+ococu*
+oçocu*
+o cocu*
+o çocu*
+oevlad*
+oevlat*
+o evlad*
+o evlat*
+
+// Genel Icerme Eslesmeleri (Basina, ortasina veya sonuna ek gelse dahi yakalar)
+*skm*
+*sqm*
+*skrm*
+*s2m*
+*s2s*
+*amk*
+*siktir*
+*yarrak*
+*orospu*
+*orosbu*
+*orospucocu*
+*orospuçocu*
+*orospu cocu*
+*orospu çocu*
+*orospuevlad*
+*orospuevlat*
+*orospu evlad*
+*orospu evlat*
+*pic*
+*piç*
+*pezevenk*
+*ibne*
+*kahpe*
+*kahbe*
+*amcik*
+*amcık*
+*pust*
+*puşt*
+*yavsak*
+*yavşak*
+*dalyarak*
+*gavat*
+*kavat*
+*amina*
+*amına*
+*amina koy*
+*amına koy*
+*anskm*
+*anaskm*
+*ananskm*
+*ananiskm*
+*ananıskm*

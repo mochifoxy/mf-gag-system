@@ -1,0 +1,27 @@
+// Buraya kufur filtresine takilmasini istemediginiz guvenli kelimeleri yazabilirsiniz
+// Her satira bir kelime (Kucuk harfle)
+nasilsin
+aksam
+cikicaz
+ocak
+siklet
+piston
+program
+kurdum
+eksik
+klasik
+fizik
+muzik
+tebrik
+acmak
+açmak
+ekmek
+silker
+silkmek
+sirk
+sirke
+sanane
+sana
+kazanan
+inanan
+dayanan
