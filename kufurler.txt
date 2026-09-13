@@ -11,14 +11,22 @@
 oc
 oç
 aq
+pic
+piç
+got
+göt
 
 // On-Ek Eslesmeleri (Kelimeler ve Kokler)
 sik*
 sikim*
 sikem*
 sikey*
-got*
-göt*
+gotu*
+götu*
+gotun*
+götün*
+gotveren*
+götveren*
 anani*
 ananı*
 bacini*
@@ -53,8 +61,6 @@ o evlat*
 *orospuevlat*
 *orospu evlad*
 *orospu evlat*
-*pic*
-*piç*
 *pezevenk*
 *ibne*
 *kahpe*

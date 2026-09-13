@@ -21,15 +21,18 @@ Eklentinin sorunsuz derlenebilmesi ve çalışabilmesi için aşağıdaki altyap
 
 ---
 
-## 🚀 v1.2 Sürümünden v1.5'e Geçişte Yapılan Düzeltmeler & Eklemeler
+## 🚀 v1.2 Sürümünden v1.5'e Geçişte Yapılan Düzeltmeler & Yenilikler
 
-*   **🌐 Tam Kapsamlı Glob / Wildcard Desteği:** v1.2'de yalnızca kelime sonuna yıldız konulabiliyorken (`kelime*`), v1.5 ile birlikte çift taraflı içerme kuralı (`*kelime*` ve `*kelime`) eklendi. Artık `*skm*` veya `*amk*` yazarak kelimenin önüne/arkasına eklenen tüm türevler tek kuralda yakalanır.
-*   **🛡️ Subsequence (Araya Harf Sıkıştırma) Motoru:** v1.2'deki harf dönüştürmeyi aşmak için araya yabancı harfler sokularak yapılan (`s a i k`, `siokerler`, `s x k`) akıllı bypass girişimleri yeni alt-dizi algoritmasıyla engellendi.
-*   **📈 Kalıcı (Süresiz) Gag Sistemi:** v1.2'de süre yalnızca katlanıyordu; v1.5'te 5. ihlale ulaşan iflah olmaz oyunculara doğrudan **KALICI (Süresiz)** gag atılması sağlandı.
-*   **👥 64-Slot ReHLDS Altyapısı:** v1.2'deki 32 kişilik bellek sınırları 64-slot sunuculara uyumlu hale getirilerek bellek taşması (stack corruption) çökmeleri önlendi.
-*   **🔒 Non-Steam Oyuncu İzolasyonu:** Non-Steam oyuncuların paylaştığı `VALVE_ID_LAN` gibi ortak ID'lerin çakışması engellendi; cezalar IP üzerinden tutularak masum oyuncuların etkilenmesi önlendi.
-*   **💬 Tırnaklı İsim Parser Düzeltmesi:** Chat üzerinden tırnaklı ve boşluklu isimlere gag atarken (`/gag "Deneme Queen" 15` veya `/gag 'Deneme Queen' 15`) oluşan isim bölünme hatası `read_args` ve otomatik tırnak normalizasyonu ile tamamen giderildi.
-*   **👑 Yetkili Dokunulmazlık CVAR'ı:** `amx_autogag_immunity` ayarı eklenerek yetkililerin filtreden muaf tutulabilmesi seçeneğe bağlandı.
+* 🌐 **Tam Kapsamlı Glob / Wildcard Desteği:** v1.2'de yalnızca kelime sonuna yıldız konulabiliyorken (`kelime*`), v1.5 ile birlikte çift taraflı içerme kuralı (`*kelime*` ve `*kelime`) eklendi. Artık `*skm*` veya `*amk*` yazarak kelimenin önüne/arkasına eklenen tüm türevler tek kuralda yakalanır.
+* 🛡️ **Subsequence (Araya Harf Sıkıştırma) Motoru:** v1.2'deki harf dönüştürmeyi aşmak için araya yabancı harfler sokularak yapılan (`s a i k`, `siokerler`, `s x k`) akıllı bypass girişimleri yeni alt-dizi algoritmasıyla engellendi (Masum kelimelerin korunması için 4+ harfli köklerde çalışacak şekilde optimize edildi).
+* 📈 **Kalıcı (Süresiz) Gag Sistemi & Çift Kasa (`mf_gag_perm`):** 5. ihlale ulaşan oyunculara doğrudan **KALICI (Süresiz)** gag uygulanır. Kalıcı cezalar `mf_gag_perm` kasasında saklanarak 30 günlük nVault temizliğinde silinmesi tamamen engellendi.
+* 💥 **SayText 192-Byte Çökme Koruması:** Uzun admin/hedef isimlerinde veya uzun sebeplerde CS 1.6 motorunun 192 byte sınırını aşarak istemcileri oyundan düşürmesini (kick/drop) önleyen akıllı 2 satırlı duyuru sistemi eklendi (Sebep asla kesilmez).
+* 👥 **64-Slot ReHLDS Altyapısı:** v1.2'deki 32 kişilik bellek sınırları 64-slot sunuculara uyumlu hale getirilerek bellek taşması (stack corruption) çökmeleri önlendi.
+* 🔒 **Non-Steam Oyuncu İzolasyonu:** Non-Steam oyuncuların paylaştığı `VALVE_ID_LAN` gibi generic ID'ler izole edildi; cezalar IP üzerinden tutularak masum oyuncuların etkilenmesi önlendi.
+* 💬 **Tırnaklı İsim Parser Düzeltmesi:** Chat üzerinden tırnaklı ve boşluklu isimlere gag atarken (`/gag "Deneme Queen" 15` veya `/gag 'Deneme Queen' 15`) oluşan isim bölünme hatası `argparse` ve otomatik tırnak normalizasyonu ile tamamen giderildi. Hem tek tırnak (`'`) hem de çift tırnak (`"`) tam desteklenir.
+* 📝 **Menü Özel Sebep Girişi Düzeltmesi:** Menüden özel sebep girerken birden fazla kelime yazıldığında cümlenin kesilip yalnızca ilk kelimenin kaydedilmesi sorunu `read_args` ile tam cümle desteğine kavuşturuldu.
+* 👑 **Yetkili Dokunulmazlık & Komut Bypass CVAR'ları:** `amx_autogag_immunity` ve `amx_gag_admin_bypass` ayarları eklenerek yetkili kontrolleri ve chat komut muafiyetleri tamamen sunucu sahibinin tercihine bağlandı.
+* ⚡ **O(1) Trie Whitelist Performans Optimizasyonu:** Whitelist taraması O(N) dinamik diziden O(1) Trie Hash yapısına taşınarak chat akışındaki CPU yükü sıfırlandı.
 
 ---
 
@@ -110,8 +113,12 @@ Yasaklı kelime ve anti-bypass kural veritabanıdır. Her satıra bir kural yaz�
 | `*kelime*` | İçerme kuralı | `*siktir*` | `hasiktir`, `hassiktir`, `siktirgit` | Yüzlerce kombinasyon eklemeyi engeller. |
 | `*kelime*` | İçerme kuralı | `*amk*` | `yohamk`, `anamk`, `amkk` | `amk` içeren tüm ön-ekleri yakalar. |
 | `kelime*` | **Ön-Ek (Prefix):** Sadece bu kökle başlayanları ve araya harf sokma bypass'larını yakalar. | `sik*` | `sikerim`, `siokerler`, `saikerler`, `sxixk`, `s1kerler` | `eksik`, `klasik`, `fizik` gibi masum kelimeleri **KORUR**. |
-| `kelime` | **Tam Eşleşme (Exact):** Sadece tek başına tam yazıldığında engeller. | `oc` / `oç` | `oc`, `oxc`, `o.c` | `çocuk`, `doktor`, `bocce` gibi kelimeleri **KORUR**. |
+| `kelime` | **Tam Eşleşme (Exact):** Sadece tek başına tam yazıldığında engeller. | `oc` / `oç`, `pic`, `got` | `oc`, `oxc`, `o.c`, `p i c` | `çocuk`, `doktor`, `yapıcam`, `götür` gibi kelimeleri **KORUR**. |
 | `*kelime` | **Son-Ek (Suffix):** Bu ekle biten kelimeleri engeller. | `*kufur` | `birkufur`, `baskufur` | Yalnızca son-ek eşleşir. |
+
+> [!TIP]
+> **3 Harfli Kısaltmalar İçin Altın Kural:**  
+> `pic`, `got`, `oc`, `aq` gibi 2-3 harfli kelimelerde `*kelime*` (içerme) veya `kelime*` (ön-ek) yerine **Tam Eşleşme** kullanılması önerilir. Türkçe'nin sondan eklemeli yapısı gereği `yapıcam`, `götür` gibi son derece yaygın masum kelimelerin yanlışlıkla engellenmesi önlenir. Sistemimizdeki akıllı anti-bypass algoritması, araya sembol, nokta veya boşluk koyanları (`p.i.ç`, `p i c`, `g_o_t`, `o.c`) tam eşleşmede dahi otomatik yakalar.
 
 ### 2. `configs/whitelist.txt`
 Küfür filtresinin taramasını **öncelikli olarak** atlamasını istediğiniz güvenli kelimelerdir. Örneğin yasaklılar listenizde `sal` varsa veya kök filtrelerinin benzeyebileceği kelimeleri korumak için (`eksik`, `klasik`, `fizik`, `muzik`, `tebrik`, `nasilsin`, `acmak`, `ekmek` vb.) buraya eklenir.

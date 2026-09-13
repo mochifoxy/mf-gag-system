@@ -395,7 +395,10 @@ public cmd_Say(id) {
     
     if (szMessage[0] == '^0') return PLUGIN_CONTINUE;
     
-    // if (szMessage[0] == '/' || szMessage[0] == '.') return PLUGIN_CONTINUE; // bug fix
+    // Yetkili komutlarinda (orn: /gag sebep, /kufursil) AutoGag admine karismasin
+    if ((szMessage[0] == '/' || szMessage[0] == '.') && access(id, ADMIN_KICK)) {
+        return PLUGIN_CONTINUE;
+    }
     
     new szName[32];
     get_user_name(id, szName, charsmax(szName));

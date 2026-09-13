@@ -27,3 +27,14 @@ sekmesi
 sekmeyen
 oruc
 oruç
+yapicam
+yapicaz
+yapayim
+kapici
+carpici
+gotur
+goturdum
+goturme
+götür
+götürdüm
+götürme

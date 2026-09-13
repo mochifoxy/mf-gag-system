@@ -335,7 +335,6 @@ public Handler_ExtendMenu(id, menu, item) {
     
     new iTime = str_to_num(szData);
     new iCurrentTime = mfgag_get_time(target);
-    new iRemainingMins = iCurrentTime / 60;
     
     if (iTime == 0) {
         mfgag_set_gag(id, target, 0, "Sure Uzatildi");
@@ -343,7 +342,7 @@ public Handler_ExtendMenu(id, menu, item) {
         if (iCurrentTime == 0) {
             client_print_color(id, print_team_default, "%sBu oyuncu zaten sinirsiz gagli!", GAG_TAG);
         } else {
-            mfgag_set_gag(id, target, iRemainingMins + iTime, "Sure Uzatildi", true);
+            mfgag_set_gag(id, target, iTime, "Sure Uzatildi", false);
         }
     }
     
@@ -566,8 +565,7 @@ public cmd_CustomGagTime(id) {
                     else ShowPlayerMenu(id);
                     return PLUGIN_HANDLED;
                 } else {
-                    new iNewMins = iRemainingMins + iTime;
-                    mfgag_set_gag(id, target, iNewMins, "Sure Uzatildi", true);
+                    mfgag_set_gag(id, target, iTime, "Sure Uzatildi", false);
                     if (g_bFromUngag[id]) ShowUngagMenu(id);
                     else ShowPlayerMenu(id);
                     return PLUGIN_HANDLED;
