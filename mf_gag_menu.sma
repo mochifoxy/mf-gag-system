@@ -5,7 +5,7 @@
 #pragma semicolon 1
 
 #define PLUGIN "MF Gag Menu"
-#define VERSION "1.5"
+#define VERSION "1.5.2"
 #define AUTHOR "mochifoxy && FoxyBlinks"
 
 new g_MenuTarget[65];

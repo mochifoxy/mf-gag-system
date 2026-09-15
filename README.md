@@ -4,20 +4,20 @@ Copyright (c) 2026 [MochiFoxy && FoxyBlinks]. All rights reserved
 CS 1.6 (GoldSrc) motoru için geliştirilmiş; yüksek performanslı, bellek güvenli, estetik ve gelişmiş heuristic anti-bypass filtreleme mimarisine sahip modüler bir Gag (Susturma) ve Otomatik Ceza sistemidir. AMX Mod X ve ReAPI altyapısını kullanır.
 
 > [!NOTE]
-> **Güncel Sürüm:** v1.5 (Dinamik Glob Eşleşme, 64-Slot Desteği, Non-Steam İzolasyonu, Gelişmiş Anti-Bypass ve Kalıcı Ceza Koruması).
+> **Güncel Sürüm:** v1.5.2 (ANSI Türkçe Karakter Düzeltmesi, Akıllı IP İzolasyonu ve Gaglı Komut Spam Koruması).
 
 [![Game](https://img.shields.io/badge/Game-CS%201.6-orange.svg)](https://store.steampowered.com/app/10/CounterStrike/)
 [![Platform](https://img.shields.io/badge/Platform-AMX%20Mod%20X%201.10%2B-blue.svg)](https://www.amxmodx.org/)
 [![Requirements](https://img.shields.io/badge/Gereksinim-ReAPI-red.svg)]()
-[![Version](https://img.shields.io/badge/Versiyon-1.5-green.svg)]()
+[![Version](https://img.shields.io/badge/Versiyon-1.5.2-green.svg)]()
 
 ---
 
-## 📋 Gereksinimler
+## 🚀 v1.5.2 Sürümünde Yapılan İyileştirmeler
 
-Eklentinin sorunsuz derlenebilmesi ve çalışabilmesi için aşağıdaki altyapıların sunucuda bulunması gerekir:
-1.  **AMX Mod X 1.10.0 veya üzeri:** Gelişmiş Trie veri yapıları, modern string işleme ve `client_print_color` gibi native fonksiyonlar için.
-2.  **ReGameDLL & ReAPI Modülü:** Ses engellemesinin (Voice Gag) en performanslı ve kararlı biçimde sunucu seviyesinde kancalanması (`CanPlayerHearPlayer`) için zorunludur.
+* 🇹🇷 **ANSI Türkçe Karakter Dönüşüm Sıralaması:** `CleanWord` fonksiyonundaki mantık sırası düzeltilerek hem UTF-8 hem de eski tek baytlık ANSI Türkçe karakterler (`ş, ı, ğ, ü, ö, ç`) ve leetspeak sayıları silinmeden doğru biçimde filtrelenir.
+* 🌐 **Akıllı IP İzolasyonu (CGNAT / Kafe Koruması):** Geçerli SteamID / ValveID'ye sahip oyuncuların cezaları yalnızca AuthID'ye yazılır; IP cezası ve kontrolü sadece kimlik alınamayan sahte/ortak oyuncularda devreye girer. Masum Steam oyuncuları asla IP gagına takılmaz.
+* ⏱️ **Gaglı Komut Cooldown & Spam Engeli:** Gaglanan oyuncuların izinli komutları (`/rank`, `/top15` vb.) chate basarak spam/flood yapmasını engelleyen 2.5 saniyelik anti-spam koruması eklendi. Seri basılan komutlar chate düşmeden sessizce yutulur.
 
 ---
 

@@ -5,7 +5,7 @@
 #pragma semicolon 1
 
 #define PLUGIN "MF Gag Cmds"
-#define VERSION "1.5"
+#define VERSION "1.5.2"
 #define AUTHOR "mochifoxy && FoxyBlinks"
 
 public plugin_init() {

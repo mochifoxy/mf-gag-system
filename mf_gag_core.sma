@@ -7,7 +7,7 @@
 #pragma semicolon 1
 
 #define PLUGIN "MF Gag Core"
-#define VERSION "1.5"
+#define VERSION "1.5.2"
 #define AUTHOR "mochifoxy && FoxyBlinks"
 
 #define TASK_CHECK_GAG 1000
@@ -23,6 +23,7 @@ new g_iGagEnd[65];
 new g_szAuthID[65][35];
 new g_szIP[65][32];
 new g_szGagReason[65][64];
+new Float:g_flLastGagCmdTime[65];
 
 new Array:g_aCmdWhitelist;
 new g_pCvarAdminBypass;
@@ -76,6 +77,7 @@ public client_putinserver(id) {
     g_bIsGagged[id] = false;
     g_iGagEnd[id] = 0;
     g_szGagReason[id][0] = '^0';
+    g_flLastGagCmdTime[id] = 0.0;
     if (is_user_bot(id) || is_user_hltv(id))
         return;
         
@@ -91,6 +93,7 @@ public client_disconnected(id) {
     g_szAuthID[id][0] = '^0';
     g_szIP[id][0] = '^0';
     g_szGagReason[id][0] = '^0';
+    g_flLastGagCmdTime[id] = 0.0;
     remove_task(id + TASK_CHECK_GAG);
     remove_task(id + TASK_GAG_EXPIRE);
     remove_task(id + TASK_PRINT_GAG);
@@ -119,19 +122,22 @@ public check_gag(task_id) {
     new bool:bIsShared = is_steam_id_shared(g_szAuthID[id]);
     
     // Once kalici kasayi kontrol et (Prune korumali)
-    if (!bIsShared && nvault_lookup(g_VaultPerm, g_szAuthID[id], szData, charsmax(szData), iTimestamp)) {
-        bFound = true;
-        bIsPerm = true;
-    }
-    else if (nvault_lookup(g_VaultPerm, g_szIP[id], szData, charsmax(szData), iTimestamp)) {
-        bFound = true;
-        bIsPerm = true;
-    }
-    else if (!bIsShared && nvault_lookup(g_Vault, g_szAuthID[id], szData, charsmax(szData), iTimestamp)) {
-        bFound = true;
-    }
-    else if (nvault_lookup(g_Vault, g_szIP[id], szData, charsmax(szData), iTimestamp)) {
-        bFound = true;
+    if (!bIsShared) {
+        if (nvault_lookup(g_VaultPerm, g_szAuthID[id], szData, charsmax(szData), iTimestamp)) {
+            bFound = true;
+            bIsPerm = true;
+        }
+        else if (nvault_lookup(g_Vault, g_szAuthID[id], szData, charsmax(szData), iTimestamp)) {
+            bFound = true;
+        }
+    } else {
+        if (nvault_lookup(g_VaultPerm, g_szIP[id], szData, charsmax(szData), iTimestamp)) {
+            bFound = true;
+            bIsPerm = true;
+        }
+        else if (nvault_lookup(g_Vault, g_szIP[id], szData, charsmax(szData), iTimestamp)) {
+            bFound = true;
+        }
     }
     
     if (bFound) {
@@ -157,9 +163,10 @@ public check_gag(task_id) {
             if (!bIsShared) {
                 if (bIsPerm) nvault_touch(g_VaultPerm, g_szAuthID[id]);
                 else nvault_touch(g_Vault, g_szAuthID[id]);
+            } else {
+                if (bIsPerm) nvault_touch(g_VaultPerm, g_szIP[id]);
+                else nvault_touch(g_Vault, g_szIP[id]);
             }
-            if (bIsPerm) nvault_touch(g_VaultPerm, g_szIP[id]);
-            else nvault_touch(g_Vault, g_szIP[id]);
             
             if (iEnd > 0) {
                 new iRemaining = iEnd - iCurrentTime;
@@ -217,9 +224,10 @@ stock remove_gag_from_db(const szAuth[], const szIP[]) {
     if (!is_steam_id_shared(szAuth)) {
         nvault_remove(g_Vault, szAuth);
         nvault_remove(g_VaultPerm, szAuth);
+    } else {
+        nvault_remove(g_Vault, szIP);
+        nvault_remove(g_VaultPerm, szIP);
     }
-    nvault_remove(g_Vault, szIP);
-    nvault_remove(g_VaultPerm, szIP);
 }
 
 LoadCmdWhitelist() {
@@ -299,6 +307,12 @@ public cmd_say(id) {
             }
             
             if (bAllowed) {
+                new Float:flGameTime = get_gametime();
+                if (flGameTime - g_flLastGagCmdTime[id] < 2.5) {
+                    client_print_color(id, print_team_default, "%sKomutlari cok hizli kullanamazsiniz! Lutfen bekleyin.", GAG_TAG);
+                    return PLUGIN_HANDLED;
+                }
+                g_flLastGagCmdTime[id] = flGameTime;
                 return PLUGIN_CONTINUE;
             }
             
@@ -353,6 +367,12 @@ public cmd_say_team(id) {
             }
             
             if (bAllowed) {
+                new Float:flGameTime = get_gametime();
+                if (flGameTime - g_flLastGagCmdTime[id] < 2.5) {
+                    client_print_color(id, print_team_default, "%sKomutlari cok hizli kullanamazsiniz! Lutfen bekleyin.", GAG_TAG);
+                    return PLUGIN_HANDLED;
+                }
+                g_flLastGagCmdTime[id] = flGameTime;
                 return PLUGIN_CONTINUE;
             }
             
@@ -465,17 +485,19 @@ public bool:native_set_gag(plugin_id, num_params) {
         if (!is_steam_id_shared(g_szAuthID[target_id])) {
             nvault_set(g_VaultPerm, g_szAuthID[target_id], szData);
             nvault_remove(g_Vault, g_szAuthID[target_id]);
+        } else {
+            nvault_set(g_VaultPerm, g_szIP[target_id], szData);
+            nvault_remove(g_Vault, g_szIP[target_id]);
         }
-        nvault_set(g_VaultPerm, g_szIP[target_id], szData);
-        nvault_remove(g_Vault, g_szIP[target_id]);
     } else {
         // Sureli ceza: g_Vault'a kaydet, g_VaultPerm'den temizle
         if (!is_steam_id_shared(g_szAuthID[target_id])) {
             nvault_set(g_Vault, g_szAuthID[target_id], szData);
             nvault_remove(g_VaultPerm, g_szAuthID[target_id]);
+        } else {
+            nvault_set(g_Vault, g_szIP[target_id], szData);
+            nvault_remove(g_VaultPerm, g_szIP[target_id]);
         }
-        nvault_set(g_Vault, g_szIP[target_id], szData);
-        nvault_remove(g_VaultPerm, g_szIP[target_id]);
     }
     
     new szTargetName[32], szAdminName[32], szAdminAuthID[35];

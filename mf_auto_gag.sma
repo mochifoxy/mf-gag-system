@@ -6,7 +6,7 @@
 #pragma semicolon 1
 
 #define PLUGIN "MF Auto Gag"
-#define VERSION "1.5"
+#define VERSION "1.5.2"
 #define AUTHOR "mochifoxy && FoxyBlinks"
 
 enum {
@@ -915,10 +915,6 @@ bool:CleanWord(szWord[]) {
                 default: { continue; }
             }
         }
-        else if (c >= 0xD0) {
-            // Şüpheli yabancı Unicode karakteri temizle/atla, oyuncuyu cezalandırma!
-            continue; 
-        }
         else {
             // 2. ADIM: ANSI Türkçe Karakterler ve Leetspeak Switch
             switch (c) {
@@ -933,6 +929,13 @@ bool:CleanWord(szWord[]) {
                 case '3': c = 'e';
                 case '7': c = 't';
                 case '8': c = 'b';
+                
+                default: {
+                    if (c >= 0xD0) {
+                        // Şüpheli yabancı Unicode karakteri temizle/atla, oyuncuyu cezalandırma!
+                        continue;
+                    }
+                }
             }
         }
 
